@@ -17,15 +17,17 @@ class StepperMotor:
     STEP_DELAY = 0.001
 
     def __init__(self):
-        # Only initialize GPIO if running on Raspberry Pi
+        # Defensive: Try to clean up GPIO before setup to avoid leftover state
         try:
+            GPIO.setwarnings(False)
+            GPIO.cleanup()
+            GPIO.setmode(GPIO.BCM)
             GPIO.setup(self.DIR_PIN, GPIO.OUT)
             GPIO.setup(self.STEP_PIN, GPIO.OUT)
             GPIO.setup(self.ENABLE_PIN, GPIO.OUT)
             GPIO.output(self.ENABLE_PIN, GPIO.LOW)  # Enable motor
         except RuntimeError as e:
             print("GPIO setup failed (likely not running on Raspberry Pi):", e)
-            # Optionally, set a flag to disable hardware control for testing
             self.gpio_available = False
         else:
             self.gpio_available = True
