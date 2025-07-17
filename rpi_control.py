@@ -246,16 +246,12 @@ class Controller:
         self.servo_enabled = True
         self.stepper_enabled = True
 
-        # Start GUI in a separate thread
-        gui_thread = threading.Thread(target=servo_force_gui, args=(self.servo_ctrl, self.shared), daemon=True)
-        gui_thread.start()
-
         def handle_exit(signum, frame):
             self.cleanup()
             sys.exit(0)
 
-        signal.signal(signal.SIGINT, handle_exit)   # Handle Ctrl+C
-        signal.signal(signal.SIGTERM, handle_exit)  # Handle termination
+        signal.signal(signal.SIGINT, handle_exit)
+        signal.signal(signal.SIGTERM, handle_exit)
 
         try:
             while self.running:
@@ -699,8 +695,13 @@ def main():
         finally:
             app.controller.cleanup()
     except Exception as e:
-        # Write error to syslog if program fails to start (e.g., on boot)
         syslog.openlog("rpi_control")
+        syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
+        syslog.closelog()
+        raise
+
+if __name__ == "__main__":
+    main()
         syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
         syslog.closelog()
         raise
