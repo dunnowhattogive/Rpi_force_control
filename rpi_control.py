@@ -8,6 +8,7 @@ from gpiozero import OutputDevice, PWMOutputDevice
 import signal
 import sys
 import traceback
+import syslog
 
 # --- Stepper Motor Control ---
 class StepperMotor:
@@ -656,17 +657,24 @@ def main():
         app.controller.cleanup()
         sys.exit(0)
 
-    root = tk.Tk()
-    global app
-    app = App(root)
-
-    signal.signal(signal.SIGINT, handle_exit)
-    signal.signal(signal.SIGTERM, handle_exit)
-
     try:
-        root.mainloop()
-    finally:
-        app.controller.cleanup()
+        root = tk.Tk()
+        global app
+        app = App(root)
+
+        signal.signal(signal.SIGINT, handle_exit)
+        signal.signal(signal.SIGTERM, handle_exit)
+
+        try:
+            root.mainloop()
+        finally:
+            app.controller.cleanup()
+    except Exception as e:
+        # Write error to syslog if program fails to start (e.g., on boot)
+        syslog.openlog("rpi_control")
+        syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
+        syslog.closelog()
+        raise
 
 if __name__ == "__main__":
     main()
