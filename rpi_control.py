@@ -44,7 +44,7 @@ class StepperMotor:
 
     def disable(self):
         if self.hw_available and self.enable is not None:
-            self.enable.off()  # Disable motor (HIGH logic, so .off() sets pin high)
+            self.enable.off()
         else:
             print("[SIM] Stepper disabled")
 
@@ -199,7 +199,11 @@ def servo_force_gui(servo_ctrl, shared):
 
 # --- Cleanup function ---
 def cleanup(stepper, servo_ctrl, ser):
-    ser.close()
+    if ser is not None:
+        try:
+            ser.close()
+        except Exception as e:
+            print(f"[SIM] Serial close error: {e}")
     stepper.disable()
     servo_ctrl.cleanup()
     # No GPIO.cleanup() needed for gpiozero
@@ -272,7 +276,11 @@ class Controller:
                     direction = output > 0  # True: increase force, False: decrease force
 
                     if steps > 0:
-                        self.stepper.step(steps, direction)
+                        # Avoid TypeError if self.stepper.step is None
+                        if callable(getattr(self.stepper, "step", None)):
+                            self.stepper.step(steps, direction)
+                        else:
+                            print(f"[SIM] Stepper step: steps={steps}, direction={'up' if direction else 'down'}")
                         print(f"PID: error={error:.2f}, output={output:.2f}, steps={steps}, direction={'up' if direction else 'down'}")
                 time.sleep(0.1)
         except KeyboardInterrupt:
