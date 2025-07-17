@@ -1,0 +1,12 @@
+[Unit]
+Description=RPi Control Python Program
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/Documents/Projects/META/PHS_V3P/RPi_control/rpi_control.py
+WorkingDirectory=/home/pi/Documents/Projects/META/PHS_V3P/RPi_control
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
