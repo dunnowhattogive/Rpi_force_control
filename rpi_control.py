@@ -259,13 +259,19 @@ class Controller:
 
     def increase_force(self):
         if self.stepper_enabled:
-            self.stepper.step(10, True)
-            print("Stepper turning anti-clockwise to increase force")
+            if callable(self.stepper.step):
+                self.stepper.step(10, True)
+                print("Stepper turning anti-clockwise to increase force")
+            else:
+                print("[SIM] Stepper step: steps=10, direction=up (anti-clockwise)")
 
     def decrease_force(self):
         if self.stepper_enabled:
-            self.stepper.step(10, False)
-            print("Stepper turning clockwise to decrease force")
+            if callable(self.stepper.step):
+                self.stepper.step(10, False)
+                print("Stepper turning clockwise to decrease force")
+            else:
+                print("[SIM] Stepper step: steps=10, direction=down (clockwise)")
 
     def get_force_reading(self):
         return self.shared.current_force
