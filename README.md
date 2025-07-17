@@ -34,6 +34,13 @@
 - **PID Force Feedback Control:**  
   The stepper motor is controlled by a PID algorithm. You can tune the proportional (Kp), integral (Ki), and derivative (Kd) gains in the Settings tab for optimal force regulation.
 
+- **Works Without Hardware:**  
+  The GUI and all test features work even if no hardware (GPIO, serial, load cell) is connected.  
+  Hardware errors are handled gracefully and simulated actions are printed to the console for development and testing.
+
+- **Error Logging:**  
+  If the program fails to start (e.g., missing serial port, GPIO errors), the error is written to the system log (`syslog`) for troubleshooting.
+
 ---
 
 ## Hardware Requirements
@@ -215,14 +222,18 @@ Clicking this button will gracefully stop the program.
 
 ## Troubleshooting
 
-- **Permission Errors:**  
-  Ensure your user is in the `gpio` and `dialout` groups for GPIO and serial access.
+- **No Hardware Connected:**  
+  You can run and test the GUI, settings, and tests without any hardware attached.  
+  All hardware actions are simulated and printed to the console.
 
-- **No Force Reading:**  
-  Check the serial connection and baud rate. The load cell must output a single float value per line.
+- **Startup Errors:**  
+  If the program fails to start (e.g., missing `/dev/ttyUSB0`, GPIO errors), the error is logged to `syslog` for diagnosis.
 
-- **GUI Not Displaying:**  
-  Ensure `tkinter` is installed and you are running in a graphical environment.
+- **Serial Port Not Found:**  
+  If `/dev/ttyUSB0` is not present, the GUI will still run and display simulated force readings.
+
+- **GPIO Errors:**  
+  If GPIO cannot be initialized (e.g., not running on a Raspberry Pi), all motor actions are simulated.
 
 ---
 
@@ -308,10 +319,13 @@ The GUI includes a **Tests** tab where you can run both unit and system tests:
 
 Test results are displayed in the GUI for easy verification.
 
+- **Simulated Hardware:**  
+  All tests and GUI actions work in simulation mode if hardware is not available.
+
 ---
 
 ## License
 
 This script is provided as-is for educational and research purposes.  
-Adapt and modify as needed.#   R p i _ f o r c e _ c o n t r o l  
+Adapt and modify as needed.#   R p i _ f o r c e _ c o n t r o l 
  

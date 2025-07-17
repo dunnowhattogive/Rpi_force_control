@@ -3,7 +3,8 @@ Description=RPi Control Python Program
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/Documents/Projects/META/PHS_V3P/RPi_control/rpi_control.py
+# Activate the virtual environment before running the script
+ExecStart=/bin/bash -c 'source /home/pi/Documents/Projects/META/PHS_V3P/RPi_control/venv/bin/activate && python /home/pi/Documents/Projects/META/PHS_V3P/RPi_control/rpi_control.py'
 WorkingDirectory=/home/pi/Documents/Projects/META/PHS_V3P/RPi_control
 Restart=always
 User=pi
