@@ -253,37 +253,6 @@ class Controller:
         signal.signal(signal.SIGINT, handle_exit)
         signal.signal(signal.SIGTERM, handle_exit)
 
-        try:
-            while self.running:
-                # Always allow GUI to run, even if no hardware
-                force = read_force(self.ser)
-                self.shared.current_force = force if force is not None else 0.0
-                threshold = self.shared.force_threshold
-                # --- PID control logic ---
-                if self.stepper_enabled:
-                    error = threshold - self.shared.current_force
-                    self.pid_integral += error
-                    derivative = error - self.pid_last_error
-                    output = self.pid_kp * error + self.pid_ki * self.pid_integral + self.pid_kd * derivative
-                    self.pid_last_error = error
-
-                    # Convert output to stepper steps and direction
-                    steps = int(abs(output))
-                    direction = output > 0  # True: increase force, False: decrease force
-
-                    if steps > 0:
-                        # Avoid TypeError if self.stepper.step is None
-                        if callable(getattr(self.stepper, "step", None)):
-                            self.stepper.step(steps, direction)
-                        else:
-                            print(f"[SIM] Stepper step: steps={steps}, direction={'up' if direction else 'down'}")
-                        print(f"PID: error={error:.2f}, output={output:.2f}, steps={steps}, direction={'up' if direction else 'down'}")
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            self.cleanup()
-        finally:
-            self.cleanup()
-
     def cleanup(self):
         cleanup(self.stepper, self.servo_ctrl, self.ser)
         self.running = False
@@ -690,18 +659,10 @@ def main():
         signal.signal(signal.SIGINT, handle_exit)
         signal.signal(signal.SIGTERM, handle_exit)
 
-        try:
-            root.mainloop()
-        finally:
-            app.controller.cleanup()
+        root.mainloop()
+        app.controller.cleanup()
     except Exception as e:
         syslog.openlog("rpi_control")
-        syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
-        syslog.closelog()
-        raise
-
-if __name__ == "__main__":
-    main()
         syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
         syslog.closelog()
         raise

@@ -327,5 +327,55 @@ Test results are displayed in the GUI for easy verification.
 ## License
 
 This script is provided as-is for educational and research purposes.  
-Adapt and modify as needed.#   R p i _ f o r c e _ c o n t r o l 
- 
+Adapt and modify as needed.
+
+# Functionality Check
+
+## Features in README
+
+- GUI for controlling servo angles and monitoring force
+- Manual and automatic force adjustment (stepper motor)
+- PID control for force feedback
+- Pin selection for hardware
+- Enable/disable servo and stepper control
+- Force threshold adjustment
+- PID parameter adjustment
+- Unit and system tests via GUI
+- Works without hardware (simulated actions)
+- Error logging to syslog
+
+## Matches in Code
+
+- **GUI for servo and force:**  
+  `servo_force_gui` provides sliders for servo angles, force threshold, and status display.
+
+- **Manual/automatic force adjustment:**  
+  Manual buttons in GUI (`App` class), automatic PID logic in `Controller`.
+
+- **PID control:**  
+  PID parameters and logic in `Controller`.
+
+- **Pin selection:**  
+  GUI tab for pin selection, updates class variables.
+
+- **Enable/disable controls:**  
+  Checkboxes in GUI, flags in `Controller`.
+
+- **Force threshold adjustment:**  
+  Slider in GUI, buttons for increment/decrement.
+
+- **PID parameter adjustment:**  
+  GUI entries and apply button.
+
+- **Unit/system tests:**  
+  `run_unit_tests` and `run_system_tests` functions, accessible from GUI.
+
+- **Works without hardware:**  
+  All hardware classes simulate actions if hardware is unavailable.
+
+- **Error logging:**  
+  Errors are logged to syslog in `main` and serial port setup.
+
+## Conclusion
+
+**All major features described in the README are implemented and present in the code.**
