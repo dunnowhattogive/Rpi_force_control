@@ -17,22 +17,31 @@ class StepperMotor:
     STEP_DELAY = 0.001
 
     def __init__(self):
-        # This is the constructor for StepperMotor
-        GPIO.setup(self.DIR_PIN, GPIO.OUT)
-        GPIO.setup(self.STEP_PIN, GPIO.OUT)
-        GPIO.setup(self.ENABLE_PIN, GPIO.OUT)
-        GPIO.output(self.ENABLE_PIN, GPIO.LOW)  # Enable motor
+        # Only initialize GPIO if running on Raspberry Pi
+        try:
+            GPIO.setup(self.DIR_PIN, GPIO.OUT)
+            GPIO.setup(self.STEP_PIN, GPIO.OUT)
+            GPIO.setup(self.ENABLE_PIN, GPIO.OUT)
+            GPIO.output(self.ENABLE_PIN, GPIO.LOW)  # Enable motor
+        except RuntimeError as e:
+            print("GPIO setup failed (likely not running on Raspberry Pi):", e)
+            # Optionally, set a flag to disable hardware control for testing
+            self.gpio_available = False
+        else:
+            self.gpio_available = True
 
     def step(self, steps, direction):
-        GPIO.output(self.DIR_PIN, GPIO.HIGH if direction else GPIO.LOW)
-        for _ in range(steps):
-            GPIO.output(self.STEP_PIN, GPIO.HIGH)
-            time.sleep(self.STEP_DELAY)
-            GPIO.output(self.STEP_PIN, GPIO.LOW)
-            time.sleep(self.STEP_DELAY)
+        if getattr(self, "gpio_available", True):
+            GPIO.output(self.DIR_PIN, GPIO.HIGH if direction else GPIO.LOW)
+            for _ in range(steps):
+                GPIO.output(self.STEP_PIN, GPIO.HIGH)
+                time.sleep(self.STEP_DELAY)
+                GPIO.output(self.STEP_PIN, GPIO.LOW)
+                time.sleep(self.STEP_DELAY)
 
     def disable(self):
-        GPIO.output(self.ENABLE_PIN, GPIO.HIGH)
+        if getattr(self, "gpio_available", True):
+            GPIO.output(self.ENABLE_PIN, GPIO.HIGH)
 
 # --- Servo Motor Control ---
 class ServoController:
