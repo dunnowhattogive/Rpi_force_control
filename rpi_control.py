@@ -307,6 +307,27 @@ class App:
         main_frame = tk.Frame(notebook)
         notebook.add(main_frame, text="Main")
 
+        # Live force display
+        self.live_force_var = tk.StringVar(value="0.00")
+        self.force_label = tk.Label(main_frame, text="Live Force (g):", font=("Arial", 12))
+        self.force_label.pack(pady=2)
+        self.force_value_box = tk.Entry(main_frame, textvariable=self.live_force_var, font=("Arial", 12), state="readonly", width=12)
+        self.force_value_box.pack(pady=2)
+
+        # Force threshold display
+        self.force_thresh_var = tk.StringVar(value=str(self.controller.shared.force_threshold))
+        self.force_thresh_label = tk.Label(main_frame, text="Force Threshold (g):", font=("Arial", 12))
+        self.force_thresh_label.pack(pady=2)
+        self.force_thresh_box = tk.Entry(main_frame, textvariable=self.force_thresh_var, font=("Arial", 12), state="readonly", width=12)
+        self.force_thresh_box.pack(pady=2)
+
+        # Periodically update force and threshold display
+        def update_force_and_thresh():
+            self.live_force_var.set(f"{self.controller.shared.current_force:.2f}")
+            self.force_thresh_var.set(str(self.controller.shared.force_threshold))
+            self.root.after(200, update_force_and_thresh)
+        update_force_and_thresh()
+
         self.manual_increase_force_button = tk.Button(
             main_frame, text="Increase Force (Stepper)", command=self.controller.increase_force
         )
@@ -368,31 +389,35 @@ class App:
         )
         self.stepper_checkbox.pack(pady=2)
 
-        # Force threshold adjustment
-        self.increase_button = tk.Button(settings_frame, text="Increase Force Threshold", command=self.controller.increase_threshold)
-        self.increase_button.pack(pady=5)
+        # Individual servo enable checkboxes
+        servo_enable_frame = tk.LabelFrame(settings_frame, text="Enable Individual Servos")
+        servo_enable_frame.pack(padx=10, pady=5, fill="x")
+        self.servo1_enabled = tk.BooleanVar(value=True)
+        self.servo2_enabled = tk.BooleanVar(value=True)
+        self.servo3_enabled = tk.BooleanVar(value=True)
+        tk.Checkbutton(servo_enable_frame, text="Servo 1", variable=self.servo1_enabled, command=self.update_individual_servos).pack(side=tk.LEFT, padx=5)
+        tk.Checkbutton(servo_enable_frame, text="Servo 2", variable=self.servo2_enabled, command=self.update_individual_servos).pack(side=tk.LEFT, padx=5)
+        tk.Checkbutton(servo_enable_frame, text="Servo 3", variable=self.servo3_enabled, command=self.update_individual_servos).pack(side=tk.LEFT, padx=5)
 
-        self.decrease_button = tk.Button(settings_frame, text="Decrease Force Threshold", command=self.controller.decrease_threshold)
-        self.decrease_button.pack(pady=5)
+        # Force threshold display and apply
+        thresh_set_frame = tk.LabelFrame(settings_frame, text="Force Threshold")
+        thresh_set_frame.pack(padx=10, pady=5, fill="x")
+        tk.Label(thresh_set_frame, text="Current Threshold (g):").pack(side=tk.LEFT)
+        self.settings_force_thresh_var = tk.StringVar(value=str(self.controller.shared.force_threshold))
+        self.settings_force_thresh_box = tk.Entry(thresh_set_frame, textvariable=self.settings_force_thresh_var, font=("Arial", 12), state="readonly", width=12)
+        self.settings_force_thresh_box.pack(side=tk.LEFT, padx=5)
+        self.set_force_thresh_var = tk.DoubleVar(value=self.controller.shared.force_threshold)
+        self.set_force_thresh_entry = tk.Entry(thresh_set_frame, textvariable=self.set_force_thresh_var, width=10)
+        self.set_force_thresh_entry.pack(side=tk.LEFT, padx=5)
+        self.apply_force_thresh_button = tk.Button(thresh_set_frame, text="Apply Threshold", command=self.apply_force_threshold)
+        self.apply_force_thresh_button.pack(side=tk.LEFT, padx=5)
 
-        # --- PID parameter controls ---
-        pid_frame = tk.LabelFrame(settings_frame, text="PID Parameters")
-        pid_frame.pack(padx=10, pady=10, fill="x")
-
-        tk.Label(pid_frame, text="Kp:").grid(row=0, column=0, sticky="e")
-        self.kp_var = tk.DoubleVar(value=self.controller.pid_kp)
-        tk.Entry(pid_frame, textvariable=self.kp_var, width=7).grid(row=0, column=1)
-
-        tk.Label(pid_frame, text="Ki:").grid(row=0, column=2, sticky="e")
-        self.ki_var = tk.DoubleVar(value=self.controller.pid_ki)
-        tk.Entry(pid_frame, textvariable=self.ki_var, width=7).grid(row=0, column=3)
-
-        tk.Label(pid_frame, text="Kd:").grid(row=0, column=4, sticky="e")
-        self.kd_var = tk.DoubleVar(value=self.controller.pid_kd)
-        tk.Entry(pid_frame, textvariable=self.kd_var, width=7).grid(row=0, column=5)
-
-        self.apply_pid_button = tk.Button(pid_frame, text="Apply PID", command=self.apply_pid_params)
-        self.apply_pid_button.grid(row=1, column=0, columnspan=6, pady=4)
+        # Periodically update threshold display in settings tab
+        def update_settings_force_thresh():
+            self.settings_force_thresh_var.set(str(self.controller.shared.force_threshold))
+            self.set_force_thresh_var.set(self.controller.shared.force_threshold)
+            self.root.after(200, update_settings_force_thresh)
+        update_settings_force_thresh()
 
         # --- end Settings tab ---
 
@@ -424,6 +449,11 @@ class App:
         self.decrease_button.config(state=state)
         self.manual_increase_force_button.config(state=state)
         self.manual_decrease_force_button.config(state=state)
+
+    def update_individual_servos(self):
+        enabled = [self.servo1_enabled.get(), self.servo2_enabled.get(), self.servo3_enabled.get()]
+        print(f"Servo enable states: {enabled}")
+        # Optionally, disable servo controls in GUI if unchecked
 
     def stop_program(self):
         self.controller.cleanup()
@@ -457,6 +487,14 @@ class App:
         self.controller.pid_ki = self.ki_var.get()
         self.controller.pid_kd = self.kd_var.get()
         print(f"Applied PID params: Kp={self.controller.pid_kp}, Ki={self.controller.pid_ki}, Kd={self.controller.pid_kd}")
+
+    def apply_force_threshold(self):
+        try:
+            val = float(self.set_force_thresh_var.get())
+            self.controller.shared.force_threshold = val
+            print(f"Applied force threshold: {val}")
+        except Exception as e:
+            print(f"Invalid force threshold value: {e}")
 
     def run_unit_tests_gui(self):
         self.test_results_text.config(state=tk.NORMAL)
