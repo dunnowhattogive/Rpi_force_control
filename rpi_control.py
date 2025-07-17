@@ -4,7 +4,7 @@ import serial
 import threading
 import tkinter as tk
 from tkinter import ttk
-import RPi.GPIO as GPIO
+from gpiozero import OutputDevice, PWMOutputDevice
 import signal
 import sys
 import traceback
@@ -17,33 +17,30 @@ class StepperMotor:
     STEP_DELAY = 0.001
 
     def __init__(self):
-        # Defensive: Try to clean up GPIO before setup to avoid leftover state
+        # Use gpiozero OutputDevice for stepper pins
         try:
-            GPIO.setwarnings(False)
-            GPIO.cleanup()
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.DIR_PIN, GPIO.OUT)
-            GPIO.setup(self.STEP_PIN, GPIO.OUT)
-            GPIO.setup(self.ENABLE_PIN, GPIO.OUT)
-            GPIO.output(self.ENABLE_PIN, GPIO.LOW)  # Enable motor
-        except RuntimeError as e:
-            print("GPIO setup failed (likely not running on Raspberry Pi):", e)
-            self.gpio_available = False
-        else:
-            self.gpio_available = True
+            self.dir = OutputDevice(self.DIR_PIN, active_high=True, initial_value=False)
+            self.step = OutputDevice(self.STEP_PIN, active_high=True, initial_value=False)
+            self.enable = OutputDevice(self.ENABLE_PIN, active_high=False, initial_value=True)
+            self.enable.on()  # Enable motor (LOW logic, so .on() sets pin low)
+        except Exception as e:
+            print(f"StepperMotor GPIO setup error: {e}")
+            self.dir = self.step = self.enable = None
 
     def step(self, steps, direction):
-        if getattr(self, "gpio_available", True):
-            GPIO.output(self.DIR_PIN, GPIO.HIGH if direction else GPIO.LOW)
-            for _ in range(steps):
-                GPIO.output(self.STEP_PIN, GPIO.HIGH)
-                time.sleep(self.STEP_DELAY)
-                GPIO.output(self.STEP_PIN, GPIO.LOW)
-                time.sleep(self.STEP_DELAY)
+        if self.dir is None or self.step is None:
+            print("StepperMotor not initialized.")
+            return
+        self.dir.value = 1 if direction else 0
+        for _ in range(steps):
+            self.step.on()
+            time.sleep(self.STEP_DELAY)
+            self.step.off()
+            time.sleep(self.STEP_DELAY)
 
     def disable(self):
-        if getattr(self, "gpio_available", True):
-            GPIO.output(self.ENABLE_PIN, GPIO.HIGH)
+        if self.enable is not None:
+            self.enable.off()  # Disable motor (HIGH logic, so .off() sets pin high)
 
 # --- Servo Motor Control ---
 class ServoController:
@@ -52,21 +49,27 @@ class ServoController:
     def __init__(self):
         self.servos = []
         for pin in self.SERVO_PINS:
-            GPIO.setup(pin, GPIO.OUT)
-            pwm = GPIO.PWM(pin, 50)
-            pwm.start(0)
-            self.servos.append(pwm)
+            try:
+                pwm = PWMOutputDevice(pin, frequency=50)
+                pwm.value = 0
+                self.servos.append(pwm)
+            except Exception as e:
+                print(f"ServoController PWM setup error on pin {pin}: {e}")
+                self.servos.append(None)
 
     def angle_to_duty(self, angle):
-        return 2.5 + (angle / 180.0) * 10
+        # Map angle to duty cycle (0.05 to 0.25 for 0-180 deg)
+        return 0.05 + (angle / 180.0) * 0.20
 
     def set_angle(self, idx, angle):
-        duty = self.angle_to_duty(angle)
-        self.servos[idx].ChangeDutyCycle(duty)
+        if idx < len(self.servos) and self.servos[idx] is not None:
+            duty = self.angle_to_duty(angle)
+            self.servos[idx].value = duty
 
     def cleanup(self):
         for servo in self.servos:
-            servo.stop()
+            if servo is not None:
+                servo.value = 0
 
 # --- Load Cell Reading ---
 def read_force(ser):
@@ -184,12 +187,12 @@ def cleanup(stepper, servo_ctrl, ser):
     ser.close()
     stepper.disable()
     servo_ctrl.cleanup()
-    GPIO.cleanup()
+    # No GPIO.cleanup() needed for gpiozero
 
 # --- Controller class integrating GUI and logic ---
 class Controller:
     def __init__(self):
-        GPIO.setmode(GPIO.BCM)
+        # Remove GPIO.setmode(GPIO.BCM) -- not needed for gpiozero
         self.stepper = StepperMotor()
         self.servo_ctrl = ServoController()
 
@@ -538,7 +541,6 @@ def run_unit_tests():
         results.append("PID parameter assignment: PASS")
     except Exception as e:
         results.append(f"PID parameter assignment: FAIL ({e})")
-    # ...existing code...
     return results
 
 def run_system_tests(controller):
