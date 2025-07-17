@@ -18,30 +18,35 @@ class StepperMotor:
     STEP_DELAY = 0.001
 
     def __init__(self):
-        # Use gpiozero OutputDevice for stepper pins
+        # Use gpiozero OutputDevice for stepper pins, but allow fallback to dummy for test/dev
         try:
             self.dir = OutputDevice(self.DIR_PIN, active_high=True, initial_value=False)
             self.step = OutputDevice(self.STEP_PIN, active_high=True, initial_value=False)
             self.enable = OutputDevice(self.ENABLE_PIN, active_high=False, initial_value=True)
             self.enable.on()  # Enable motor (LOW logic, so .on() sets pin low)
+            self.hw_available = True
         except Exception as e:
             print(f"StepperMotor GPIO setup error: {e}")
             self.dir = self.step = self.enable = None
+            self.hw_available = False
 
     def step(self, steps, direction):
-        if self.dir is None or self.step is None:
-            print("StepperMotor not initialized.")
-            return
-        self.dir.value = 1 if direction else 0
-        for _ in range(steps):
-            self.step.on()
-            time.sleep(self.STEP_DELAY)
-            self.step.off()
-            time.sleep(self.STEP_DELAY)
+        if self.hw_available and self.dir is not None and self.step is not None:
+            self.dir.value = 1 if direction else 0
+            for _ in range(steps):
+                self.step.on()
+                time.sleep(self.STEP_DELAY)
+                self.step.off()
+                time.sleep(self.STEP_DELAY)
+        else:
+            # Simulate stepper for GUI/testing
+            print(f"[SIM] Stepper step: steps={steps}, direction={'up' if direction else 'down'}")
 
     def disable(self):
-        if self.enable is not None:
+        if self.hw_available and self.enable is not None:
             self.enable.off()  # Disable motor (HIGH logic, so .off() sets pin high)
+        else:
+            print("[SIM] Stepper disabled")
 
 # --- Servo Motor Control ---
 class ServoController:
@@ -49,6 +54,7 @@ class ServoController:
 
     def __init__(self):
         self.servos = []
+        self.hw_available = True
         for pin in self.SERVO_PINS:
             try:
                 pwm = PWMOutputDevice(pin, frequency=50)
@@ -57,23 +63,31 @@ class ServoController:
             except Exception as e:
                 print(f"ServoController PWM setup error on pin {pin}: {e}")
                 self.servos.append(None)
+                self.hw_available = False
 
     def angle_to_duty(self, angle):
         # Map angle to duty cycle (0.05 to 0.25 for 0-180 deg)
         return 0.05 + (angle / 180.0) * 0.20
 
     def set_angle(self, idx, angle):
-        if idx < len(self.servos) and self.servos[idx] is not None:
+        if self.hw_available and idx < len(self.servos) and self.servos[idx] is not None:
             duty = self.angle_to_duty(angle)
             self.servos[idx].value = duty
+        else:
+            print(f"[SIM] Servo {idx+1} set to angle {angle}")
 
     def cleanup(self):
-        for servo in self.servos:
-            if servo is not None:
+        for i, servo in enumerate(self.servos):
+            if self.hw_available and servo is not None:
                 servo.value = 0
+            else:
+                print(f"[SIM] Servo {i+1} cleanup")
 
 # --- Load Cell Reading ---
 def read_force(ser):
+    if ser is None:
+        # Simulate force value for GUI/testing
+        return 0.0
     line = ser.readline().decode('utf-8').strip()
     try:
         return float(line)
@@ -204,7 +218,15 @@ class Controller:
 
         self.shared = SharedData(FORCE_TARGET, FORCE_TOLERANCE)
 
-        self.ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
+        # Serial port handling with error reporting to syslog
+        try:
+            self.ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
+        except Exception as e:
+            syslog.openlog("rpi_control")
+            syslog.syslog(syslog.LOG_ERR, f"Serial port error: {e}\n{traceback.format_exc()}")
+            syslog.closelog()
+            print(f"Serial port error: {e}")
+            self.ser = None
 
         self.force_threshold = FORCE_TARGET
         self.running = True
@@ -233,14 +255,13 @@ class Controller:
 
         try:
             while self.running:
+                # Always allow GUI to run, even if no hardware
                 force = read_force(self.ser)
-                if force is None:
-                    continue
-                self.shared.current_force = force
+                self.shared.current_force = force if force is not None else 0.0
                 threshold = self.shared.force_threshold
                 # --- PID control logic ---
                 if self.stepper_enabled:
-                    error = threshold - force
+                    error = threshold - self.shared.current_force
                     self.pid_integral += error
                     derivative = error - self.pid_last_error
                     output = self.pid_kp * error + self.pid_ki * self.pid_integral + self.pid_kd * derivative
