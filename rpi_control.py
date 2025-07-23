@@ -351,6 +351,29 @@ class App:
         settings_frame = tk.Frame(notebook)
         notebook.add(settings_frame, text="Settings")
 
+        # --- PID parameter controls ---
+        pid_frame = tk.LabelFrame(settings_frame, text="PID Parameters")
+        pid_frame.pack(padx=10, pady=10, fill="x")
+
+        tk.Label(pid_frame, text="Kp:").grid(row=0, column=0, sticky="e")
+        self.kp_var = tk.DoubleVar(value=self.controller.pid_kp)
+        self.kp_entry = tk.Entry(pid_frame, textvariable=self.kp_var, width=7)
+        self.kp_entry.grid(row=0, column=1)
+
+        tk.Label(pid_frame, text="Ki:").grid(row=0, column=2, sticky="e")
+        self.ki_var = tk.DoubleVar(value=self.controller.pid_ki)
+        self.ki_entry = tk.Entry(pid_frame, textvariable=self.ki_var, width=7)
+        self.ki_entry.grid(row=0, column=3)
+
+        tk.Label(pid_frame, text="Kd:").grid(row=0, column=4, sticky="e")
+        self.kd_var = tk.DoubleVar(value=self.controller.pid_kd)
+        self.kd_entry = tk.Entry(pid_frame, textvariable=self.kd_var, width=7)
+        self.kd_entry.grid(row=0, column=5)
+
+        self.apply_pid_button = tk.Button(pid_frame, text="Apply PID", command=self.apply_pid_params)
+        self.apply_pid_button.grid(row=1, column=0, columnspan=6, pady=4)
+
+        # --- Pin and threshold entry boxes: make them writable and update values on Apply ---
         # Pin Selection
         pin_frame = tk.LabelFrame(settings_frame, text="Pin Selection")
         pin_frame.pack(padx=10, pady=5, fill="x")
@@ -410,20 +433,13 @@ class App:
         thresh_set_frame.pack(padx=10, pady=5, fill="x")
         tk.Label(thresh_set_frame, text="Current Threshold (g):").pack(side=tk.LEFT)
         self.settings_force_thresh_var = tk.StringVar(value=str(self.controller.shared.force_threshold))
-        self.settings_force_thresh_box = tk.Entry(thresh_set_frame, textvariable=self.settings_force_thresh_var, font=("Arial", 12), state="readonly", width=12)
+        self.settings_force_thresh_box = tk.Entry(thresh_set_frame, textvariable=self.settings_force_thresh_var, font=("Arial", 12), width=12)
         self.settings_force_thresh_box.pack(side=tk.LEFT, padx=5)
         self.set_force_thresh_var = tk.DoubleVar(value=self.controller.shared.force_threshold)
         self.set_force_thresh_entry = tk.Entry(thresh_set_frame, textvariable=self.set_force_thresh_var, width=10)
         self.set_force_thresh_entry.pack(side=tk.LEFT, padx=5)
         self.apply_force_thresh_button = tk.Button(thresh_set_frame, text="Apply Threshold", command=self.apply_force_threshold)
         self.apply_force_thresh_button.pack(side=tk.LEFT, padx=5)
-
-        # Periodically update threshold display in settings tab
-        def update_settings_force_thresh():
-            self.settings_force_thresh_var.set(str(self.controller.shared.force_threshold))
-            self.set_force_thresh_var.set(self.controller.shared.force_threshold)
-            self.root.after(200, update_settings_force_thresh)
-        update_settings_force_thresh()
 
         # --- end Settings tab ---
 
@@ -473,34 +489,40 @@ class App:
             time.sleep(0.2)
 
     def apply_pins(self):
-        # Update StepperMotor pins
-        StepperMotor.DIR_PIN = self.stepper_dir_var.get()
-        StepperMotor.STEP_PIN = self.stepper_step_var.get()
-        StepperMotor.ENABLE_PIN = self.stepper_enable_var.get()
-        # Update ServoController pins
-        ServoController.SERVO_PINS = [
-            self.servo1_var.get(),
-            self.servo2_var.get(),
-            self.servo3_var.get()
-        ]
-        # Optionally, reinitialize hardware if needed
-        print("Updated Stepper and Servo pins:")
-        print(f"Stepper DIR: {StepperMotor.DIR_PIN}, STEP: {StepperMotor.STEP_PIN}, ENABLE: {StepperMotor.ENABLE_PIN}")
-        print(f"Servo PWM: {ServoController.SERVO_PINS}")
-
-    def apply_pid_params(self):
-        self.controller.pid_kp = self.kp_var.get()
-        self.controller.pid_ki = self.ki_var.get()
-        self.controller.pid_kd = self.kd_var.get()
-        print(f"Applied PID params: Kp={self.controller.pid_kp}, Ki={self.controller.pid_ki}, Kd={self.controller.pid_kd}")
+        # Update StepperMotor pins from entry boxes
+        try:
+            StepperMotor.DIR_PIN = int(self.stepper_dir_var.get())
+            StepperMotor.STEP_PIN = int(self.stepper_step_var.get())
+            StepperMotor.ENABLE_PIN = int(self.stepper_enable_var.get())
+            ServoController.SERVO_PINS = [
+                int(self.servo1_var.get()),
+                int(self.servo2_var.get()),
+                int(self.servo3_var.get())
+            ]
+            print("Updated Stepper and Servo pins:")
+            print(f"Stepper DIR: {StepperMotor.DIR_PIN}, STEP: {StepperMotor.STEP_PIN}, ENABLE: {StepperMotor.ENABLE_PIN}")
+            print(f"Servo PWM: {ServoController.SERVO_PINS}")
+        except Exception as e:
+            print(f"Invalid pin value: {e}")
 
     def apply_force_threshold(self):
         try:
-            val = float(self.set_force_thresh_var.get())
+            val = float(self.set_force_thresh_entry.get())
             self.controller.shared.force_threshold = val
+            self.force_thresh_var.set(str(val))  # Update main tab display
+            self.settings_force_thresh_var.set(str(val))  # Update settings tab display
             print(f"Applied force threshold: {val}")
         except Exception as e:
             print(f"Invalid force threshold value: {e}")
+
+    def apply_pid_params(self):
+        try:
+            self.controller.pid_kp = float(self.kp_entry.get())
+            self.controller.pid_ki = float(self.ki_entry.get())
+            self.controller.pid_kd = float(self.kd_entry.get())
+            print(f"Applied PID params: Kp={self.controller.pid_kp}, Ki={self.controller.pid_ki}, Kd={self.controller.pid_kd}")
+        except Exception as e:
+            print(f"Invalid PID parameter value: {e}")
 
     def run_unit_tests_gui(self):
         self.test_results_text.config(state=tk.NORMAL)
@@ -509,7 +531,7 @@ class App:
             results = run_unit_tests()
             self.test_results_text.insert(tk.END, "\n".join(results) + "\n")
         except Exception as e:
-            self.test_results_text.insert(tk.END, f"Error running unit tests:\n{traceback.format_exc()}\n")
+            self.test_results_text.insert(tk.END, f"Error running unit tests:\n{traceback.format_exc()}")
         self.test_results_text.config(state=tk.DISABLED)
 
     def run_system_tests_gui(self):
@@ -519,7 +541,7 @@ class App:
             results = run_system_tests(self.controller)
             self.test_results_text.insert(tk.END, "\n".join(results) + "\n")
         except Exception as e:
-            self.test_results_text.insert(tk.END, f"Error running system tests:\n{traceback.format_exc()}\n")
+            self.test_results_text.insert(tk.END, f"Error running system tests:\n{traceback.format_exc()}")
         self.test_results_text.config(state=tk.DISABLED)
 
 # --- Unit and System Tests ---
