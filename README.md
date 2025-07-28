@@ -12,47 +12,50 @@
   Move a stepper motor in both directions, with adjustable step count and direction, using GPIO pins.
   - **Manual/Automatic Mode Toggle:** Switch between manual button control and automatic PID-based force adjustment using a checkbox in the Main tab
   - **Visual Status Indicator:** Real-time display showing current control mode with color coding (Manual: blue, Automatic: green)
+  - **Preset Step Control:** Dropdown selection for quick step increments (1, 5, 10, 25, 50, 100 steps)
 
 - **Servo Motor Control:**  
   Independently control up to three servo motors via PWM, setting their angles from 0° to 180°.
-  - **Preset Buttons:** Quickly set each servo to 0°, 30°, 60°, 90°, 120°, 150°, or 180° using dedicated buttons in the GUI.
+  - **Real-time Sliders:** Interactive sliders with live angle display for precise control
+  - **Preset Dropdown Menus:** Quick angle selection via configurable dropdown menus for each servo
+  - **Configurable Presets:** Customizable preset angles that can be modified in the Settings tab
   - **Individual Enable/Disable:** Control each servo independently with dedicated checkboxes in the Settings tab
 
 - **Force Feedback:**  
   Continuously read force data from a serial-connected load cell (e.g., via `/dev/ttyUSB0`), and use this feedback to automatically adjust the stepper motor to maintain a target force.
+  - **Visual Force Status Indicator:** Color-coded status display (Green: Within Range, Red: Outside Range)
+  - **Real-time Force Monitoring:** Live force value display with automatic updates
 
 - **Interactive GUI:**  
   - **Main Tab:**
     - Live force measurement display in readonly text boxes
     - Current force threshold display with real-time updates
+    - Color-coded force status indicator (Green/Red)
+    - Real-time status log with timestamps showing all system activities
+    - Servo controls with sliders, angle displays, and preset dropdowns
     - Manual/Automatic stepper control mode toggle with visual status indicator
-    - Manual stepper control buttons (automatically disabled in automatic mode)
-    - Program stop button for graceful shutdown
+    - Stepper preset controls with dropdown selection and directional buttons
+    - Clear log functionality for status management
   - **Settings Tab:**
     - Fully editable pin configuration for all motors with Apply button
     - Editable PID parameter adjustment (Kp, Ki, Kd) with Apply button
     - Editable force threshold setting with Apply button
+    - Configurable servo preset angles with validation and Apply button
     - Individual servo motor enable/disable checkboxes
     - Overall servo and stepper control enable/disable checkboxes
+    - Stepper preset buttons for quick manual adjustments
   - **Tests Tab:**
     - Unit and system test execution with real-time results display
     - Comprehensive test coverage for all components
 
-- **Threaded Architecture:**  
-  The GUI runs in a separate thread, allowing real-time hardware control and feedback without blocking the user interface.
+- **Real-time Status Logging:**  
+  All system activities are logged with timestamps in a scrollable status window in the Main tab, replacing terminal-only output with GUI-integrated feedback.
 
-- **PID Force Feedback Control:**  
-  The stepper motor is controlled by a PID algorithm. You can tune the proportional (Kp), integral (Ki), and derivative (Kd) gains in the Settings tab for optimal force regulation.
-
-- **Hardware Compatibility:**  
-  Uses gpiozero library for improved GPIO control and better hardware abstraction.
-
-- **Works Without Hardware:**  
-  The GUI and all test features work even if no hardware (GPIO, serial, load cell) is connected.  
-  Hardware errors are handled gracefully and simulated actions are printed to the console for development and testing.
-
-- **Error Logging:**  
-  If the program fails to start (e.g., missing serial port, GPIO errors), the error is written to the system log (`syslog`) for troubleshooting.
+- **Enhanced User Experience:**
+  - All user interactions provide immediate visual feedback in the status log
+  - Color-coded indicators for system status and force conditions
+  - Dropdown menus for quick preset selection
+  - Real-time updates for all monitored values
 
 ---
 
@@ -188,16 +191,23 @@ python3 rpi_control.py
 
 - **Main Tab Controls:**
   - **Force Displays:** Live force measurement and threshold values in readonly text boxes
+  - **Force Status Indicator:** Color-coded visual indicator (Green: Within Range, Red: Outside Range)
+  - **Status Log:** Real-time scrollable log with timestamps showing all system activities
+  - **Servo Controls:** 
+    - Interactive sliders with real-time angle display
+    - Preset dropdown menus for quick angle selection
   - **Control Mode Toggle:** "Automatic Stepper Control" checkbox with visual status indicator
-  - **Manual Controls:** Increase/Decrease Force buttons (disabled in automatic mode)
-  - **Stop Program:** Graceful shutdown button
+  - **Stepper Preset Controls:** Dropdown selection with increase/decrease buttons
+  - **Clear Log Button:** Reset the status log display
 
 - **Settings Tab Controls:**
   - **Pin Configuration:** Editable text fields for all GPIO pin assignments with Apply button
   - **PID Parameters:** Editable Kp, Ki, Kd values with Apply button for real-time tuning
   - **Force Threshold:** Editable threshold setting with Apply button
+  - **Configurable Servo Presets:** Dropdown menus for each servo to select preset angles
   - **Individual Servo Control:** Checkboxes to enable/disable each servo independently
   - **Overall Control:** Master enable/disable for servo and stepper systems
+  - **Stepper Preset Buttons:** Quick access buttons for manual stepper adjustments
 
 - **Tests Tab Controls:**
   - **Unit Tests:** Component-level testing with detailed results

@@ -193,7 +193,14 @@ def servo_force_gui(servo_ctrl, shared):
     status_label = tk.Label(root, text="Status: Waiting...", font=("Arial", 16))
     status_label.pack(pady=5)
 
-    # Periodically update force display
+    # Periodically update force and threshold display
+    def update_force_and_thresh():
+        self.live_force_var.set(f"{self.controller.shared.current_force:.2f}")
+        self.force_thresh_var.set(str(self.controller.shared.force_threshold))
+        self.update_force_status_indicator()
+        self.root.after(200, update_force_and_thresh)
+    update_force_and_thresh()
+
     root.after(200, update_force_display)
     root.mainloop()
 
@@ -340,6 +347,18 @@ class App:
         self.force_thresh_label.pack(pady=2)
         self.force_thresh_box = tk.Entry(main_frame, textvariable=self.force_thresh_var, font=("Arial", 12), state="readonly", width=12)
         self.force_thresh_box.pack(pady=2)
+
+        # Force status indicator
+        self.force_status_frame = tk.Frame(main_frame)
+        self.force_status_frame.pack(pady=5)
+        
+        self.force_status_label = tk.Label(self.force_status_frame, text="Force Status:", font=("Arial", 12))
+        self.force_status_label.pack(side=tk.LEFT, padx=5)
+        
+        self.force_status_indicator = tk.Label(self.force_status_frame, text="WITHIN RANGE", 
+                                              font=("Arial", 12, "bold"), fg="white", bg="green", 
+                                              width=15, relief="raised")
+        self.force_status_indicator.pack(side=tk.LEFT, padx=5)
 
         # Status/Log display
         status_log_frame = tk.LabelFrame(main_frame, text="Status Log")
