@@ -245,6 +245,7 @@ class Controller:
         # Control enable flags
         self.servo_enabled = True
         self.stepper_enabled = True
+        self.auto_mode_enabled = False
 
         def handle_exit(signum, frame):
             self.cleanup()
@@ -258,7 +259,7 @@ class Controller:
         self.running = False
 
     def increase_force(self):
-        if self.stepper_enabled:
+        if self.stepper_enabled and not self.auto_mode_enabled:
             if callable(self.stepper.step):
                 self.stepper.step(10, True)
                 print("Stepper turning anti-clockwise to increase force")
@@ -266,7 +267,7 @@ class Controller:
                 print("[SIM] Stepper step: steps=10, direction=up (anti-clockwise)")
 
     def decrease_force(self):
-        if self.stepper_enabled:
+        if self.stepper_enabled and not self.auto_mode_enabled:
             if callable(self.stepper.step):
                 self.stepper.step(10, False)
                 print("Stepper turning clockwise to decrease force")
@@ -304,6 +305,7 @@ class App:
 
         self.servo_control_enabled = tk.BooleanVar(value=True)
         self.stepper_control_enabled = tk.BooleanVar(value=True)
+        self.auto_stepper_mode = tk.BooleanVar(value=False)
 
         # --- Notebook for tabs ---
         notebook = ttk.Notebook(root)
@@ -326,6 +328,27 @@ class App:
         self.force_thresh_label.pack(pady=2)
         self.force_thresh_box = tk.Entry(main_frame, textvariable=self.force_thresh_var, font=("Arial", 12), state="readonly", width=12)
         self.force_thresh_box.pack(pady=2)
+
+        # Manual/Automatic stepper control toggle
+        self.stepper_mode_frame = tk.LabelFrame(main_frame, text="Stepper Control Mode")
+        self.stepper_mode_frame.pack(pady=10, padx=10, fill="x")
+        
+        self.stepper_mode_toggle = tk.Checkbutton(
+            self.stepper_mode_frame, 
+            text="Automatic Stepper Control", 
+            variable=self.auto_stepper_mode,
+            command=self.toggle_stepper_mode,
+            font=("Arial", 11)
+        )
+        self.stepper_mode_toggle.pack(pady=5)
+        
+        self.stepper_mode_status = tk.Label(
+            self.stepper_mode_frame, 
+            text="Mode: Manual", 
+            font=("Arial", 10), 
+            fg="blue"
+        )
+        self.stepper_mode_status.pack(pady=2)
 
         # Periodically update force and threshold display
         def update_force_and_thresh():
@@ -543,6 +566,23 @@ class App:
         except Exception as e:
             self.test_results_text.insert(tk.END, f"Error running system tests:\n{traceback.format_exc()}")
         self.test_results_text.config(state=tk.DISABLED)
+
+    def toggle_stepper_mode(self):
+        if self.auto_stepper_mode.get():
+            # Switch to automatic mode
+            self.controller.auto_mode_enabled = True
+            self.stepper_mode_status.config(text="Mode: Automatic", fg="green")
+            self.manual_increase_force_button.config(state=tk.DISABLED)
+            self.manual_decrease_force_button.config(state=tk.DISABLED)
+            print("Switched to automatic stepper control")
+        else:
+            # Switch to manual mode
+            self.controller.auto_mode_enabled = False
+            self.stepper_mode_status.config(text="Mode: Manual", fg="blue")
+            if self.stepper_control_enabled.get():
+                self.manual_increase_force_button.config(state=tk.NORMAL)
+                self.manual_decrease_force_button.config(state=tk.NORMAL)
+            print("Switched to manual stepper control")
 
 # --- Unit and System Tests ---
 def run_unit_tests():
