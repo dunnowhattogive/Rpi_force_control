@@ -258,21 +258,32 @@ class Controller:
         cleanup(self.stepper, self.servo_ctrl, self.ser)
         self.running = False
 
+    def set_app(self, app):
+        """Set reference to App for logging"""
+        self.app = app
+
+    def log_status(self, message):
+        """Log status message to GUI if available, otherwise print"""
+        if self.app and hasattr(self.app, 'log_status'):
+            self.app.log_status(message)
+        else:
+            print(message)
+
     def increase_force(self):
         if self.stepper_enabled and not self.auto_mode_enabled:
             if callable(self.stepper.step):
                 self.stepper.step(10, True)
-                print("Stepper turning anti-clockwise to increase force")
+                self.log_status("Stepper turning anti-clockwise to increase force")
             else:
-                print("[SIM] Stepper step: steps=10, direction=up (anti-clockwise)")
+                self.log_status("[SIM] Stepper step: steps=10, direction=up (anti-clockwise)")
 
     def decrease_force(self):
         if self.stepper_enabled and not self.auto_mode_enabled:
             if callable(self.stepper.step):
                 self.stepper.step(10, False)
-                print("Stepper turning clockwise to decrease force")
+                self.log_status("Stepper turning clockwise to decrease force")
             else:
-                print("[SIM] Stepper step: steps=10, direction=down (clockwise)")
+                self.log_status("[SIM] Stepper step: steps=10, direction=down (clockwise)")
 
     def get_force_reading(self):
         return self.shared.current_force
@@ -290,11 +301,11 @@ class Controller:
 
     def increase_threshold(self):
         self.shared.force_threshold += 1
-        print(f"Force threshold increased to {self.shared.force_threshold}")
+        self.log_status(f"Force threshold increased to {self.shared.force_threshold}")
 
     def decrease_threshold(self):
         self.shared.force_threshold -= 1
-        print(f"Force threshold decreased to {self.shared.force_threshold}")
+        self.log_status(f"Force threshold decreased to {self.shared.force_threshold}")
 
 # --- App class for Tkinter GUI ---
 class App:
@@ -302,6 +313,7 @@ class App:
         self.root = root
         self.root.title("RPi Control")
         self.controller = Controller()
+        self.controller.set_app(self)  # Set reference for logging
 
         self.servo_control_enabled = tk.BooleanVar(value=True)
         self.stepper_control_enabled = tk.BooleanVar(value=True)
@@ -328,6 +340,22 @@ class App:
         self.force_thresh_label.pack(pady=2)
         self.force_thresh_box = tk.Entry(main_frame, textvariable=self.force_thresh_var, font=("Arial", 12), state="readonly", width=12)
         self.force_thresh_box.pack(pady=2)
+
+        # Status/Log display
+        status_log_frame = tk.LabelFrame(main_frame, text="Status Log")
+        status_log_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        
+        self.status_log = tk.Text(status_log_frame, height=8, width=60, state=tk.DISABLED, 
+                                 font=("Consolas", 9), wrap=tk.WORD)
+        scrollbar = tk.Scrollbar(status_log_frame, orient=tk.VERTICAL, command=self.status_log.yview)
+        self.status_log.config(yscrollcommand=scrollbar.set)
+        
+        self.status_log.pack(side=tk.LEFT, fill="both", expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill="y")
+        
+        # Clear log button
+        clear_log_btn = tk.Button(status_log_frame, text="Clear Log", command=self.clear_status_log)
+        clear_log_btn.pack(pady=2)
 
         # Servo controls frame
         servo_control_frame = tk.LabelFrame(main_frame, text="Servo Controls")
@@ -628,11 +656,11 @@ class App:
                 int(self.servo2_var.get()),
                 int(self.servo3_var.get())
             ]
-            print("Updated Stepper and Servo pins:")
-            print(f"Stepper DIR: {StepperMotor.DIR_PIN}, STEP: {StepperMotor.STEP_PIN}, ENABLE: {StepperMotor.ENABLE_PIN}")
-            print(f"Servo PWM: {ServoController.SERVO_PINS}")
+            self.log_status("Updated Stepper and Servo pins:")
+            self.log_status(f"Stepper DIR: {StepperMotor.DIR_PIN}, STEP: {StepperMotor.STEP_PIN}, ENABLE: {StepperMotor.ENABLE_PIN}")
+            self.log_status(f"Servo PWM: {ServoController.SERVO_PINS}")
         except Exception as e:
-            print(f"Invalid pin value: {e}")
+            self.log_status(f"Invalid pin value: {e}")
 
     def apply_force_threshold(self):
         try:
@@ -640,18 +668,18 @@ class App:
             self.controller.shared.force_threshold = val
             self.force_thresh_var.set(str(val))  # Update main tab display
             self.settings_force_thresh_var.set(str(val))  # Update settings tab display
-            print(f"Applied force threshold: {val}")
+            self.log_status(f"Applied force threshold: {val}")
         except Exception as e:
-            print(f"Invalid force threshold value: {e}")
+            self.log_status(f"Invalid force threshold value: {e}")
 
     def apply_pid_params(self):
         try:
             self.controller.pid_kp = float(self.kp_entry.get())
             self.controller.pid_ki = float(self.ki_entry.get())
             self.controller.pid_kd = float(self.kd_entry.get())
-            print(f"Applied PID params: Kp={self.controller.pid_kp}, Ki={self.controller.pid_ki}, Kd={self.controller.pid_kd}")
+            self.log_status(f"Applied PID params: Kp={self.controller.pid_kp}, Ki={self.controller.pid_ki}, Kd={self.controller.pid_kd}")
         except Exception as e:
-            print(f"Invalid PID parameter value: {e}")
+            self.log_status(f"Invalid PID parameter value: {e}")
 
     def run_unit_tests_gui(self):
         self.test_results_text.config(state=tk.NORMAL)
@@ -673,6 +701,12 @@ class App:
             self.test_results_text.insert(tk.END, f"Error running system tests:\n{traceback.format_exc()}")
         self.test_results_text.config(state=tk.DISABLED)
 
+    def clear_status_log(self):
+        """Clear the status log"""
+        self.status_log.config(state=tk.NORMAL)
+        self.status_log.delete(1.0, tk.END)
+        self.status_log.config(state=tk.DISABLED)
+
     def toggle_stepper_mode(self):
         if self.auto_stepper_mode.get():
             # Switch to automatic mode
@@ -680,7 +714,7 @@ class App:
             self.stepper_mode_status.config(text="Mode: Automatic", fg="green")
             self.manual_increase_force_button.config(state=tk.DISABLED)
             self.manual_decrease_force_button.config(state=tk.DISABLED)
-            print("Switched to automatic stepper control")
+            self.log_status("Switched to automatic stepper control")
         else:
             # Switch to manual mode
             self.controller.auto_mode_enabled = False
@@ -688,42 +722,42 @@ class App:
             if self.stepper_control_enabled.get():
                 self.manual_increase_force_button.config(state=tk.NORMAL)
                 self.manual_decrease_force_button.config(state=tk.NORMAL)
-            print("Switched to manual stepper control")
+            self.log_status("Switched to manual stepper control")
 
     def set_servo_angle(self, servo_idx, angle_str):
         if self.servo_control_enabled.get():
             angle = int(float(angle_str))
             self.controller.servo_ctrl.set_angle(servo_idx, angle)
-            print(f"Servo {servo_idx+1} set to {angle} degrees")
+            self.log_status(f"Servo {servo_idx+1} set to {angle} degrees")
 
     def set_servo_preset(self, servo_idx, angle):
         if self.servo_control_enabled.get():
             self.servo_angle_vars[servo_idx].set(angle)
             self.controller.servo_ctrl.set_angle(servo_idx, angle)
-            print(f"Servo {servo_idx+1} preset to {angle} degrees")
+            self.log_status(f"Servo {servo_idx+1} preset to {angle} degrees")
 
     def stepper_preset_increase(self, steps):
         if self.stepper_control_enabled.get() and not self.auto_stepper_mode.get():
             if callable(self.controller.stepper.step):
                 self.controller.stepper.step(steps, True)
-                print(f"Stepper preset: +{steps} steps (anti-clockwise)")
+                self.log_status(f"Stepper preset: +{steps} steps (anti-clockwise)")
             else:
-                print(f"[SIM] Stepper preset: +{steps} steps (anti-clockwise)")
+                self.log_status(f"[SIM] Stepper preset: +{steps} steps (anti-clockwise)")
 
     def stepper_preset_decrease(self, steps):
         if self.stepper_control_enabled.get() and not self.auto_stepper_mode.get():
             if callable(self.controller.stepper.step):
                 self.controller.stepper.step(steps, False)
-                print(f"Stepper preset: -{steps} steps (clockwise)")
+                self.log_status(f"Stepper preset: -{steps} steps (clockwise)")
             else:
-                print(f"[SIM] Stepper preset: -{steps} steps (clockwise)")
+                self.log_status(f"[SIM] Stepper preset: -{steps} steps (clockwise)")
 
     def set_all_servos_preset(self, angle):
         if self.servo_control_enabled.get():
             for i in range(3):
                 self.servo_angle_vars[i].set(angle)
                 self.controller.servo_ctrl.set_angle(i, angle)
-            print(f"All servos set to {angle} degrees")
+            self.log_status(f"All servos set to {angle} degrees")
 
     def servo_preset_selected(self, event, servo_idx):
         """Handle servo preset selection from dropdown"""
@@ -734,9 +768,9 @@ class App:
                 angle = int(angle_str)
                 self.servo_angle_vars[servo_idx].set(angle)
                 self.controller.servo_ctrl.set_angle(servo_idx, angle)
-                print(f"Servo {servo_idx+1} preset to {angle} degrees")
+                self.log_status(f"Servo {servo_idx+1} preset to {angle} degrees")
             except ValueError:
-                print(f"Invalid angle selected for servo {servo_idx+1}")
+                self.log_status(f"Invalid angle selected for servo {servo_idx+1}")
 
     def stepper_preset_increase_dropdown(self):
         """Increase stepper position using dropdown selection"""
@@ -747,11 +781,11 @@ class App:
                 steps = int(step_str)
                 if callable(self.controller.stepper.step):
                     self.controller.stepper.step(steps, True)
-                    print(f"Stepper preset: +{steps} steps (anti-clockwise)")
+                    self.log_status(f"Stepper preset: +{steps} steps (anti-clockwise)")
                 else:
-                    print(f"[SIM] Stepper preset: +{steps} steps (anti-clockwise)")
+                    self.log_status(f"[SIM] Stepper preset: +{steps} steps (anti-clockwise)")
             except (ValueError, IndexError):
-                print("Please select a step count from dropdown")
+                self.log_status("Please select a step count from dropdown")
 
     def stepper_preset_decrease_dropdown(self):
         """Decrease stepper position using dropdown selection"""
@@ -762,11 +796,11 @@ class App:
                 steps = int(step_str)
                 if callable(self.controller.stepper.step):
                     self.controller.stepper.step(steps, False)
-                    print(f"Stepper preset: -{steps} steps (clockwise)")
+                    self.log_status(f"Stepper preset: -{steps} steps (clockwise)")
                 else:
-                    print(f"[SIM] Stepper preset: -{steps} steps (clockwise)")
+                    self.log_status(f"[SIM] Stepper preset: -{steps} steps (clockwise)")
             except (ValueError, IndexError):
-                print("Please select a step count from dropdown")
+                self.log_status("Please select a step count from dropdown")
 
     def apply_servo_presets(self):
         try:
@@ -778,9 +812,9 @@ class App:
             
             self.servo_presets = new_presets
             self.update_preset_dropdowns()
-            print(f"Applied servo presets: {self.servo_presets}")
+            self.log_status(f"Applied servo presets: {self.servo_presets}")
         except Exception as e:
-            print(f"Invalid servo preset values: {e}")
+            self.log_status(f"Invalid servo preset values: {e}")
 
     def update_preset_dropdowns(self):
         """Update servo preset dropdowns with new values"""
