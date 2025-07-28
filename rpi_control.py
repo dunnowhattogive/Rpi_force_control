@@ -329,7 +329,46 @@ class App:
         self.force_thresh_box = tk.Entry(main_frame, textvariable=self.force_thresh_var, font=("Arial", 12), state="readonly", width=12)
         self.force_thresh_box.pack(pady=2)
 
-        # Manual/Automatic stepper control toggle
+        # Servo controls frame
+        servo_control_frame = tk.LabelFrame(main_frame, text="Servo Controls")
+        servo_control_frame.pack(pady=10, padx=10, fill="x")
+
+        # Servo angle controls
+        self.servo_angle_vars = []
+        self.servo_scales = []
+        self.servo_preset_buttons = []
+        
+        for i in range(3):
+            servo_frame = tk.Frame(servo_control_frame)
+            servo_frame.pack(fill="x", padx=5, pady=2)
+            
+            tk.Label(servo_frame, text=f"Servo {i+1} Angle:", width=12).pack(side=tk.LEFT)
+            
+            angle_var = tk.IntVar(value=90)
+            self.servo_angle_vars.append(angle_var)
+            
+            scale = tk.Scale(servo_frame, from_=0, to=180, orient=tk.HORIZONTAL, 
+                           variable=angle_var, command=lambda val, idx=i: self.set_servo_angle(idx, val))
+            scale.pack(side=tk.LEFT, fill="x", expand=True, padx=5)
+            self.servo_scales.append(scale)
+            
+            # Current angle display
+            angle_display = tk.Label(servo_frame, text="90°", width=4, relief="sunken")
+            angle_display.pack(side=tk.LEFT, padx=2)
+            
+            # Preset dropdown for each servo
+            preset_var = tk.StringVar(value="90°")
+            preset_dropdown = ttk.Combobox(servo_frame, textvariable=preset_var, width=6, state="readonly")
+            preset_dropdown['values'] = [f"{preset}°" for preset in self.servo_presets]
+            preset_dropdown.pack(side=tk.LEFT, padx=2)
+            preset_dropdown.bind('<<ComboboxSelected>>', lambda event, idx=i: self.servo_preset_selected(event, idx))
+            
+            # Update angle display when slider changes
+            def update_angle_display(val, idx=i, display=angle_display):
+                display.config(text=f"{int(float(val))}°")
+            scale.config(command=lambda val, idx=i: [self.set_servo_angle(idx, val), update_angle_display(val, idx)])
+
+        # Stepper control mode with preset dropdown
         self.stepper_mode_frame = tk.LabelFrame(main_frame, text="Stepper Control Mode")
         self.stepper_mode_frame.pack(pady=10, padx=10, fill="x")
         
@@ -350,25 +389,53 @@ class App:
         )
         self.stepper_mode_status.pack(pady=2)
 
-        # Periodically update force and threshold display
-        def update_force_and_thresh():
-            self.live_force_var.set(f"{self.controller.shared.current_force:.2f}")
-            self.force_thresh_var.set(str(self.controller.shared.force_threshold))
-            self.root.after(200, update_force_and_thresh)
-        update_force_and_thresh()
+        # Stepper preset dropdown
+        stepper_preset_frame = tk.Frame(self.stepper_mode_frame)
+        stepper_preset_frame.pack(pady=5)
+        
+        tk.Label(stepper_preset_frame, text="Quick Steps:").pack(side=tk.LEFT, padx=5)
+        
+        self.stepper_preset_var = tk.StringVar(value="Select Steps")
+        self.stepper_preset_dropdown = ttk.Combobox(stepper_preset_frame, textvariable=self.stepper_preset_var, 
+                                                   width=12, state="readonly")
+        self.stepper_preset_dropdown['values'] = ["1 step", "5 steps", "10 steps", "25 steps", "50 steps", "100 steps"]
+        self.stepper_preset_dropdown.pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(stepper_preset_frame, text="Increase (+)", 
+                 command=self.stepper_preset_increase_dropdown).pack(side=tk.LEFT, padx=2)
+        tk.Button(stepper_preset_frame, text="Decrease (-)", 
+                 command=self.stepper_preset_decrease_dropdown).pack(side=tk.LEFT, padx=2)
 
-        self.manual_increase_force_button = tk.Button(
-            main_frame, text="Increase Force (Stepper)", command=self.controller.increase_force
-        )
-        self.manual_increase_force_button.pack(pady=5)
+        # Remove old servo preset selection frame
+        # servo_preset_frame = tk.LabelFrame(main_frame, text="Servo Preset Positions")
+        # servo_preset_frame.pack(pady=5, padx=10, fill="x")
+        
+        # Configurable presets (default values)
+        self.servo_presets = [0, 30, 45, 60, 90, 120, 135, 150, 180]
+        
+        # for i in range(3):
+        #     preset_row = tk.Frame(servo_preset_frame)
+        #     preset_row.pack(fill="x", padx=5, pady=2)
+            
+        #     tk.Label(preset_row, text=f"Servo {i+1}:", width=8).pack(side=tk.LEFT)
+            
+        #     preset_buttons_row = []
+        #     for preset in self.servo_presets:
+        #         btn = tk.Button(preset_row, text=f"{preset}°", width=4,
+        #                       command=lambda idx=i, angle=preset: self.set_servo_preset(idx, angle))
+        #         btn.pack(side=tk.LEFT, padx=1)
+        #         preset_buttons_row.append(btn)
+        #     self.servo_preset_buttons.append(preset_buttons_row)
 
-        self.manual_decrease_force_button = tk.Button(
-            main_frame, text="Decrease Force (Stepper)", command=self.controller.decrease_force
-        )
-        self.manual_decrease_force_button.pack(pady=5)
-
-        self.stop_button = tk.Button(main_frame, text="Stop Program", command=self.stop_program)
-        self.stop_button.pack(pady=10)
+        # All servos preset control
+        # all_servos_frame = tk.Frame(servo_preset_frame)
+        # all_servos_frame.pack(fill="x", padx=5, pady=2)
+        
+        # tk.Label(all_servos_frame, text="All Servos:", width=8).pack(side=tk.LEFT)
+        # for preset in self.servo_presets:
+        #     btn = tk.Button(all_servos_frame, text=f"All {preset}°", width=6,
+        #                   command=lambda angle=preset: self.set_all_servos_preset(angle))
+        #     btn.pack(side=tk.LEFT, padx=1)
 
         # --- Settings tab ---
         settings_frame = tk.Frame(notebook)
@@ -463,6 +530,45 @@ class App:
         self.set_force_thresh_entry.pack(side=tk.LEFT, padx=5)
         self.apply_force_thresh_button = tk.Button(thresh_set_frame, text="Apply Threshold", command=self.apply_force_threshold)
         self.apply_force_thresh_button.pack(side=tk.LEFT, padx=5)
+
+        # Servo position presets configuration
+        servo_presets_config_frame = tk.LabelFrame(settings_frame, text="Configure Servo Presets")
+        servo_presets_config_frame.pack(padx=10, pady=5, fill="x")
+        
+        preset_config_row = tk.Frame(servo_presets_config_frame)
+        preset_config_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(preset_config_row, text="Preset Angles:").pack(side=tk.LEFT)
+        
+        self.preset_entries = []
+        for i, preset in enumerate(self.servo_presets):
+            preset_var = tk.IntVar(value=preset)
+            entry = tk.Entry(preset_config_row, textvariable=preset_var, width=4)
+            entry.pack(side=tk.LEFT, padx=1)
+            self.preset_entries.append(preset_var)
+        
+        tk.Button(preset_config_row, text="Apply Presets", command=self.apply_servo_presets).pack(side=tk.LEFT, padx=5)
+
+        # Remove old servo presets section and replace with stepper presets only
+        # Stepper position presets
+        stepper_presets_frame = tk.LabelFrame(settings_frame, text="Stepper Position Presets")
+        stepper_presets_frame.pack(padx=10, pady=5, fill="x")
+        
+        stepper_preset_row = tk.Frame(stepper_presets_frame)
+        stepper_preset_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_row, text="Quick Steps:", width=10).pack(side=tk.LEFT)
+        
+        for steps in [1, 5, 10, 25, 50, 100]:
+            # Increase buttons
+            btn_inc = tk.Button(stepper_preset_row, text=f"+{steps}", width=4,
+                              command=lambda s=steps: self.stepper_preset_increase(s))
+            btn_inc.pack(side=tk.LEFT, padx=1)
+            
+            # Decrease buttons  
+            btn_dec = tk.Button(stepper_preset_row, text=f"-{steps}", width=4,
+                              command=lambda s=steps: self.stepper_preset_decrease(s))
+            btn_dec.pack(side=tk.LEFT, padx=1)
 
         # --- end Settings tab ---
 
@@ -583,6 +689,109 @@ class App:
                 self.manual_increase_force_button.config(state=tk.NORMAL)
                 self.manual_decrease_force_button.config(state=tk.NORMAL)
             print("Switched to manual stepper control")
+
+    def set_servo_angle(self, servo_idx, angle_str):
+        if self.servo_control_enabled.get():
+            angle = int(float(angle_str))
+            self.controller.servo_ctrl.set_angle(servo_idx, angle)
+            print(f"Servo {servo_idx+1} set to {angle} degrees")
+
+    def set_servo_preset(self, servo_idx, angle):
+        if self.servo_control_enabled.get():
+            self.servo_angle_vars[servo_idx].set(angle)
+            self.controller.servo_ctrl.set_angle(servo_idx, angle)
+            print(f"Servo {servo_idx+1} preset to {angle} degrees")
+
+    def stepper_preset_increase(self, steps):
+        if self.stepper_control_enabled.get() and not self.auto_stepper_mode.get():
+            if callable(self.controller.stepper.step):
+                self.controller.stepper.step(steps, True)
+                print(f"Stepper preset: +{steps} steps (anti-clockwise)")
+            else:
+                print(f"[SIM] Stepper preset: +{steps} steps (anti-clockwise)")
+
+    def stepper_preset_decrease(self, steps):
+        if self.stepper_control_enabled.get() and not self.auto_stepper_mode.get():
+            if callable(self.controller.stepper.step):
+                self.controller.stepper.step(steps, False)
+                print(f"Stepper preset: -{steps} steps (clockwise)")
+            else:
+                print(f"[SIM] Stepper preset: -{steps} steps (clockwise)")
+
+    def set_all_servos_preset(self, angle):
+        if self.servo_control_enabled.get():
+            for i in range(3):
+                self.servo_angle_vars[i].set(angle)
+                self.controller.servo_ctrl.set_angle(i, angle)
+            print(f"All servos set to {angle} degrees")
+
+    def servo_preset_selected(self, event, servo_idx):
+        """Handle servo preset selection from dropdown"""
+        if self.servo_control_enabled.get():
+            try:
+                # Extract angle value from dropdown selection (e.g., "90°" -> 90)
+                angle_str = event.widget.get().replace('°', '')
+                angle = int(angle_str)
+                self.servo_angle_vars[servo_idx].set(angle)
+                self.controller.servo_ctrl.set_angle(servo_idx, angle)
+                print(f"Servo {servo_idx+1} preset to {angle} degrees")
+            except ValueError:
+                print(f"Invalid angle selected for servo {servo_idx+1}")
+
+    def stepper_preset_increase_dropdown(self):
+        """Increase stepper position using dropdown selection"""
+        if self.stepper_control_enabled.get() and not self.auto_stepper_mode.get():
+            try:
+                # Extract step count from dropdown selection (e.g., "10 steps" -> 10)
+                step_str = self.stepper_preset_var.get().split()[0]
+                steps = int(step_str)
+                if callable(self.controller.stepper.step):
+                    self.controller.stepper.step(steps, True)
+                    print(f"Stepper preset: +{steps} steps (anti-clockwise)")
+                else:
+                    print(f"[SIM] Stepper preset: +{steps} steps (anti-clockwise)")
+            except (ValueError, IndexError):
+                print("Please select a step count from dropdown")
+
+    def stepper_preset_decrease_dropdown(self):
+        """Decrease stepper position using dropdown selection"""
+        if self.stepper_control_enabled.get() and not self.auto_stepper_mode.get():
+            try:
+                # Extract step count from dropdown selection (e.g., "10 steps" -> 10)
+                step_str = self.stepper_preset_var.get().split()[0]
+                steps = int(step_str)
+                if callable(self.controller.stepper.step):
+                    self.controller.stepper.step(steps, False)
+                    print(f"Stepper preset: -{steps} steps (clockwise)")
+                else:
+                    print(f"[SIM] Stepper preset: -{steps} steps (clockwise)")
+            except (ValueError, IndexError):
+                print("Please select a step count from dropdown")
+
+    def apply_servo_presets(self):
+        try:
+            new_presets = [int(entry.get()) for entry in self.preset_entries]
+            # Validate presets are within servo range
+            for preset in new_presets:
+                if preset < 0 or preset > 180:
+                    raise ValueError(f"Preset {preset} out of range (0-180)")
+            
+            self.servo_presets = new_presets
+            self.update_preset_dropdowns()
+            print(f"Applied servo presets: {self.servo_presets}")
+        except Exception as e:
+            print(f"Invalid servo preset values: {e}")
+
+    def update_preset_dropdowns(self):
+        """Update servo preset dropdowns with new values"""
+        # Update servo preset dropdowns (need to find them in the widget hierarchy)
+        for i in range(3):
+            # Find the dropdown for servo i and update its values
+            servo_frame = self.servo_scales[i].master
+            for widget in servo_frame.winfo_children():
+                if isinstance(widget, ttk.Combobox):
+                    widget['values'] = [f"{preset}°" for preset in self.servo_presets]
+                    break
 
 # --- Unit and System Tests ---
 def run_unit_tests():

@@ -10,29 +10,42 @@
 
 - **Stepper Motor Control:**  
   Move a stepper motor in both directions, with adjustable step count and direction, using GPIO pins.
+  - **Manual/Automatic Mode Toggle:** Switch between manual button control and automatic PID-based force adjustment using a checkbox in the Main tab
+  - **Visual Status Indicator:** Real-time display showing current control mode with color coding (Manual: blue, Automatic: green)
 
 - **Servo Motor Control:**  
   Independently control up to three servo motors via PWM, setting their angles from 0° to 180°.
   - **Preset Buttons:** Quickly set each servo to 0°, 30°, 60°, 90°, 120°, 150°, or 180° using dedicated buttons in the GUI.
+  - **Individual Enable/Disable:** Control each servo independently with dedicated checkboxes in the Settings tab
 
 - **Force Feedback:**  
   Continuously read force data from a serial-connected load cell (e.g., via `/dev/ttyUSB0`), and use this feedback to automatically adjust the stepper motor to maintain a target force.
 
 - **Interactive GUI:**  
-  - Adjust servo angles with sliders.
-  - Use preset buttons for common servo angles.
-  - Set the force threshold and tolerance.
-  - View real-time force readings.
-  - See status feedback (below/within/above threshold) with color-coded indicators.
-  - **Enable/Disable Controls:** Checkboxes allow you to enable or disable servo and stepper motor controls individually.
-  - **Increase/Decrease Force Threshold:** Buttons to adjust the force threshold value.
-  - **Stop Program Button:** Gracefully stops the program when clicked.
+  - **Main Tab:**
+    - Live force measurement display in readonly text boxes
+    - Current force threshold display with real-time updates
+    - Manual/Automatic stepper control mode toggle with visual status indicator
+    - Manual stepper control buttons (automatically disabled in automatic mode)
+    - Program stop button for graceful shutdown
+  - **Settings Tab:**
+    - Fully editable pin configuration for all motors with Apply button
+    - Editable PID parameter adjustment (Kp, Ki, Kd) with Apply button
+    - Editable force threshold setting with Apply button
+    - Individual servo motor enable/disable checkboxes
+    - Overall servo and stepper control enable/disable checkboxes
+  - **Tests Tab:**
+    - Unit and system test execution with real-time results display
+    - Comprehensive test coverage for all components
 
 - **Threaded Architecture:**  
   The GUI runs in a separate thread, allowing real-time hardware control and feedback without blocking the user interface.
 
 - **PID Force Feedback Control:**  
   The stepper motor is controlled by a PID algorithm. You can tune the proportional (Kp), integral (Ki), and derivative (Kd) gains in the Settings tab for optimal force regulation.
+
+- **Hardware Compatibility:**  
+  Uses gpiozero library for improved GPIO control and better hardware abstraction.
 
 - **Works Without Hardware:**  
   The GUI and all test features work even if no hardware (GPIO, serial, load cell) is connected.  
@@ -45,12 +58,12 @@
 
 ## Hardware Requirements
 
-- **Raspberry Pi** (with RPi.GPIO and serial support)
+- **Raspberry Pi** (with gpiozero and serial support)
 - **Stepper Motor** (with driver connected to GPIO pins 16, 20, 21)
 - **Up to 3 Servo Motors** (connected to GPIO pins 17, 27, 22 by default)
 - **Load Cell** with serial output (connected to `/dev/ttyUSB0` or similar)
 - **Python 3** with the following packages:
-  - `RPi.GPIO`
+  - `gpiozero`
   - `pyserial`
   - `tkinter`
 
@@ -58,16 +71,38 @@
 
 ## Pin Assignments
 
-| Function         | GPIO Pin |
-|------------------|----------|
-| Stepper DIR      | 20       |
-| Stepper STEP     | 21       |
-| Stepper ENABLE   | 16       |
-| Servo 1 PWM      | 17       |
-| Servo 2 PWM      | 27       |
-| Servo 3 PWM      | 22       |
+| Function         | GPIO Pin | Configurable |
+|------------------|----------|--------------|
+| Stepper DIR      | 20       | Yes          |
+| Stepper STEP     | 21       | Yes          |
+| Stepper ENABLE   | 16       | Yes          |
+| Servo 1 PWM      | 17       | Yes          |
+| Servo 2 PWM      | 27       | Yes          |
+| Servo 3 PWM      | 22       | Yes          |
 
-Modify these in the script if your hardware uses different pins.
+All pin assignments can be modified in the Settings tab with immediate effect using the Apply Pins button.
+
+---
+
+## Control Modes
+
+### Manual Mode (Default)
+- **Direct Control:** Use "Increase Force" and "Decrease Force" buttons for immediate stepper motor control
+- **Button State:** Manual control buttons are enabled and functional
+- **Visual Indicator:** Status shows "Mode: Manual" in blue text
+- **Use Case:** Ideal for setup, testing, and precise manual adjustments
+
+### Automatic Mode
+- **PID Control:** Automatic force regulation using configurable PID parameters
+- **Button State:** Manual control buttons are automatically disabled to prevent conflicts
+- **Visual Indicator:** Status shows "Mode: Automatic" in green text
+- **Force Regulation:** System maintains force at set threshold using continuous feedback
+- **Use Case:** Ideal for consistent, hands-off operation and precise force maintenance
+
+### Mode Switching
+- **Toggle Control:** Use the "Automatic Stepper Control" checkbox in the Main tab
+- **Instant Effect:** Mode changes take effect immediately
+- **Safe Transition:** System safely handles transitions between modes without conflicts
 
 ---
 
@@ -151,22 +186,23 @@ python3 rpi_control.py
 
 ### 4. GUI Controls
 
-- **Servo Sliders:** Adjust the angle of each servo motor in real time.
-- **Servo Preset Buttons:** Instantly set each servo to 0°, 30°, 60°, 90°, 120°, 150°, or 180°.
-- **Force Threshold Slider:** Set the target force (in grams).
-- **Force Display:** Shows the current force measured by the load cell.
-- **Status Indicator:**  
-  - **Blue:** Below threshold (stepper moves up)
-  - **Green:** Within threshold (stepper holds)
-  - **Red:** Above threshold (stepper moves down)
-- **Enable Servo Control:** Checkbox to enable/disable servo controls.
-- **Enable Stepper Control:** Checkbox to enable/disable stepper controls and threshold adjustment.
-- **Increase/Decrease Force Threshold:** Buttons to adjust the force threshold value.
-- **Increase/Decrease Force:** Buttons to manually increase or decrease the force applied through the stepper motor.
-- **PID Parameters:**  
-  - **Kp, Ki, Kd fields:** Configure the proportional, integral, and derivative gains for the PID force feedback controller in the Settings tab.  
-  - **Apply PID Button:** Apply new PID values at runtime.
-- **Stop Program Button:** Gracefully stops the program when clicked.
+- **Main Tab Controls:**
+  - **Force Displays:** Live force measurement and threshold values in readonly text boxes
+  - **Control Mode Toggle:** "Automatic Stepper Control" checkbox with visual status indicator
+  - **Manual Controls:** Increase/Decrease Force buttons (disabled in automatic mode)
+  - **Stop Program:** Graceful shutdown button
+
+- **Settings Tab Controls:**
+  - **Pin Configuration:** Editable text fields for all GPIO pin assignments with Apply button
+  - **PID Parameters:** Editable Kp, Ki, Kd values with Apply button for real-time tuning
+  - **Force Threshold:** Editable threshold setting with Apply button
+  - **Individual Servo Control:** Checkboxes to enable/disable each servo independently
+  - **Overall Control:** Master enable/disable for servo and stepper systems
+
+- **Tests Tab Controls:**
+  - **Unit Tests:** Component-level testing with detailed results
+  - **System Tests:** End-to-end functionality testing
+  - **Real-time Results:** Test output displayed immediately in scrollable text area
 
 ### 5. Auto-Start on Boot
 
