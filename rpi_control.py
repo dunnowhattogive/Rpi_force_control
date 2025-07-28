@@ -939,8 +939,6 @@ class App:
                               command=lambda s=steps: self.stepper_preset_decrease(s))
             btn_dec.pack(side=tk.LEFT, padx=1)
 
-    # ...existing code...
-
     def apply_stepper_presets(self):
         try:
             new_presets = [int(entry.get()) for entry in self.stepper_preset_entries]
@@ -1009,17 +1007,16 @@ class App:
         for widget in self.stepper_preset_entries:
             widget.master.destroy()
         
-        # Find the parent frame
-        stepper_preset_config_row = None
-        parent = self.stepper_preset_entries[0].master.master
-        for widget in parent.winfo_children():
+        # Recreate entry fields
+        preset_config_row = None
+        for widget in self.stepper_preset_entries[0].master.master.winfo_children():
             if isinstance(widget, tk.Frame):
-                stepper_preset_config_row = widget
+                preset_config_row = widget
                 break
         
-        if stepper_preset_config_row:
+        if preset_config_row:
             # Remove old entries
-            for widget in stepper_preset_config_row.winfo_children():
+            for widget in preset_config_row.winfo_children():
                 if isinstance(widget, tk.Entry):
                     widget.destroy()
             
@@ -1027,7 +1024,7 @@ class App:
             self.stepper_preset_entries = []
             for i, preset in enumerate(self.stepper_presets):
                 preset_var = tk.IntVar(value=preset)
-                entry = tk.Entry(stepper_preset_config_row, textvariable=preset_var, width=4)
+                entry = tk.Entry(preset_config_row, textvariable=preset_var, width=4)
                 entry.pack(side=tk.LEFT, padx=1)
                 self.stepper_preset_entries.append(preset_var)
 
@@ -1085,6 +1082,99 @@ class App:
             self.log_status("No stepper configuration file found, using defaults")
         except Exception as e:
             self.log_status(f"Error loading stepper presets: {e}")
+
+    # ...existing code...
+
+    def update_preset_entries(self):
+        """Update the preset entry fields to match current presets"""
+        # Clear existing entries
+        for widget in self.preset_entries:
+            widget.master.destroy()
+        
+        # Recreate entry fields
+        preset_config_row = None
+        for widget in self.preset_entries[0].master.master.winfo_children():
+            if isinstance(widget, tk.Frame):
+                preset_config_row = widget
+                break
+        
+        if preset_config_row:
+            # Remove old entries
+            for widget in preset_config_row.winfo_children():
+                if isinstance(widget, tk.Entry):
+                    widget.destroy()
+            
+            # Add new entries
+            self.preset_entries = []
+            for i, preset in enumerate(self.servo_presets):
+                preset_var = tk.IntVar(value=preset)
+                entry = tk.Entry(preset_config_row, textvariable=preset_var, width=4)
+                entry.pack(side=tk.LEFT, padx=1)
+                self.preset_entries.append(preset_var)
+
+    def update_preset_dropdowns(self):
+        """Update servo preset dropdowns with new values"""
+        # Update servo preset dropdowns (need to find them in the widget hierarchy)
+        for i in range(3):
+            # Find the dropdown for servo i and update its values
+            servo_frame = self.servo_scales[i].master
+            for widget in servo_frame.winfo_children():
+                if isinstance(widget, ttk.Combobox):
+                    widget['values'] = [f"{preset}°" for preset in self.servo_presets]
+                    break
+
+    def save_servo_presets(self):
+        """Save servo presets to a configuration file"""
+        try:
+            import json
+            config = {'servo_presets': self.servo_presets}
+            with open('servo_config.json', 'w') as f:
+                json.dump(config, f)
+            self.log_status("Servo presets saved to servo_config.json")
+        except Exception as e:
+            self.log_status(f"Error saving servo presets: {e}")
+
+    def load_servo_presets(self):
+        """Load servo presets from a configuration file"""
+        try:
+            import json
+            with open('servo_config.json', 'r') as f:
+                config = json.load(f)
+            self.servo_presets = config.get('servo_presets', [0, 30, 45, 60, 90, 120, 135, 150, 180])
+            self.update_preset_dropdowns()
+            self.update_preset_entries()
+            self.log_status("Servo presets loaded from servo_config.json")
+        except FileNotFoundError:
+            self.log_status("No servo configuration file found, using defaults")
+        except Exception as e:
+            self.log_status(f"Error loading servo presets: {e}")
+
+    def update_force_status_indicator(self):
+        """Update force status indicator based on current force and threshold"""
+        force = self.controller.shared.current_force
+        threshold = self.controller.shared.force_threshold
+        tolerance = self.controller.shared.force_tolerance
+        
+        if force < threshold - tolerance:
+            self.force_status_indicator.config(text="BELOW RANGE", bg="red")
+        elif force > threshold + tolerance:
+            self.force_status_indicator.config(text="ABOVE RANGE", bg="red")
+        else:
+            self.force_status_indicator.config(text="WITHIN RANGE", bg="green")
+
+    def log_status(self, message):
+        """Add a message to the status log with timestamp"""
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        log_message = f"[{timestamp}] {message}\n"
+        
+        self.status_log.config(state=tk.NORMAL)
+        self.status_log.insert(tk.END, log_message)
+        self.status_log.see(tk.END)  # Auto-scroll to bottom
+        self.status_log.config(state=tk.DISABLED)
+        
+        # Also print to terminal for debugging
+        print(message)
 
     # ...existing code...
 
