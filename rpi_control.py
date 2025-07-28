@@ -201,6 +201,20 @@ def servo_force_gui(servo_ctrl, shared):
         self.root.after(200, update_force_and_thresh)
     update_force_and_thresh()
 
+    # Manual increase/decrease force buttons
+    self.manual_increase_force_button = tk.Button(
+        main_frame, text="Increase Force (Stepper)", command=self.controller.increase_force
+    )
+    self.manual_increase_force_button.pack(pady=5)
+
+    self.manual_decrease_force_button = tk.Button(
+        main_frame, text="Decrease Force (Stepper)", command=self.controller.decrease_force
+    )
+    self.manual_decrease_force_button.pack(pady=5)
+
+    self.stop_button = tk.Button(main_frame, text="Stop Program", command=self.stop_program)
+    self.stop_button.pack(pady=10)
+
     root.after(200, update_force_display)
     root.mainloop()
 
@@ -326,6 +340,10 @@ class App:
         self.stepper_control_enabled = tk.BooleanVar(value=True)
         self.auto_stepper_mode = tk.BooleanVar(value=False)
 
+        # Configurable presets (default values) - moved to top of __init__
+        self.servo_presets = [0, 30, 45, 60, 90, 120, 135, 150, 180]
+        self.stepper_presets = [1, 5, 10, 25, 50, 100]
+
         # --- Notebook for tabs ---
         notebook = ttk.Notebook(root)
         notebook.pack(fill="both", expand=True)
@@ -445,7 +463,7 @@ class App:
         self.stepper_preset_var = tk.StringVar(value="Select Steps")
         self.stepper_preset_dropdown = ttk.Combobox(stepper_preset_frame, textvariable=self.stepper_preset_var, 
                                                    width=12, state="readonly")
-        self.stepper_preset_dropdown['values'] = ["1 step", "5 steps", "10 steps", "25 steps", "50 steps", "100 steps"]
+        self.stepper_preset_dropdown['values'] = [f"{steps} step{'s' if steps != 1 else ''}" for steps in self.stepper_presets]
         self.stepper_preset_dropdown.pack(side=tk.LEFT, padx=5)
         
         tk.Button(stepper_preset_frame, text="Increase (+)", 
@@ -594,28 +612,23 @@ class App:
             entry.pack(side=tk.LEFT, padx=1)
             self.preset_entries.append(preset_var)
         
-        tk.Button(preset_config_row, text="Apply Presets", command=self.apply_servo_presets).pack(side=tk.LEFT, padx=5)
+        preset_buttons_row = tk.Frame(servo_presets_config_frame)
+        preset_buttons_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Button(preset_buttons_row, text="Apply Presets", command=self.apply_servo_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(preset_buttons_row, text="Reset to Defaults", command=self.reset_servo_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(preset_buttons_row, text="Save Config", command=self.save_servo_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(preset_buttons_row, text="Load Config", command=self.load_servo_presets).pack(side=tk.LEFT, padx=5)
 
-        # Remove old servo presets section and replace with stepper presets only
-        # Stepper position presets
-        stepper_presets_frame = tk.LabelFrame(settings_frame, text="Stepper Position Presets")
-        stepper_presets_frame.pack(padx=10, pady=5, fill="x")
+        # Add/Remove preset controls
+        preset_modify_row = tk.Frame(servo_presets_config_frame)
+        preset_modify_row.pack(fill="x", padx=5, pady=2)
         
-        stepper_preset_row = tk.Frame(stepper_presets_frame)
-        stepper_preset_row.pack(fill="x", padx=5, pady=2)
-        
-        tk.Label(stepper_preset_row, text="Quick Steps:", width=10).pack(side=tk.LEFT)
-        
-        for steps in [1, 5, 10, 25, 50, 100]:
-            # Increase buttons
-            btn_inc = tk.Button(stepper_preset_row, text=f"+{steps}", width=4,
-                              command=lambda s=steps: self.stepper_preset_increase(s))
-            btn_inc.pack(side=tk.LEFT, padx=1)
-            
-            # Decrease buttons  
-            btn_dec = tk.Button(stepper_preset_row, text=f"-{steps}", width=4,
-                              command=lambda s=steps: self.stepper_preset_decrease(s))
-            btn_dec.pack(side=tk.LEFT, padx=1)
+        tk.Label(preset_modify_row, text="Add New Preset:").pack(side=tk.LEFT)
+        self.new_preset_var = tk.IntVar(value=90)
+        tk.Entry(preset_modify_row, textvariable=self.new_preset_var, width=4).pack(side=tk.LEFT, padx=2)
+        tk.Button(preset_modify_row, text="Add", command=self.add_servo_preset).pack(side=tk.LEFT, padx=2)
+        tk.Button(preset_modify_row, text="Remove Last", command=self.remove_servo_preset).pack(side=tk.LEFT, padx=5)
 
         # --- end Settings tab ---
 
@@ -831,20 +844,249 @@ class App:
             
             self.servo_presets = new_presets
             self.update_preset_dropdowns()
+            self.update_preset_entries()  # Update the entry fields to match
             self.log_status(f"Applied servo presets: {self.servo_presets}")
         except Exception as e:
             self.log_status(f"Invalid servo preset values: {e}")
 
-    def update_preset_dropdowns(self):
-        """Update servo preset dropdowns with new values"""
-        # Update servo preset dropdowns (need to find them in the widget hierarchy)
-        for i in range(3):
-            # Find the dropdown for servo i and update its values
-            servo_frame = self.servo_scales[i].master
-            for widget in servo_frame.winfo_children():
-                if isinstance(widget, ttk.Combobox):
-                    widget['values'] = [f"{preset}°" for preset in self.servo_presets]
-                    break
+    def reset_servo_presets(self):
+        """Reset servo presets to default values"""
+        self.servo_presets = [0, 30, 45, 60, 90, 120, 135, 150, 180]
+        self.update_preset_dropdowns()
+        self.update_preset_entries()
+        self.log_status("Servo presets reset to defaults")
+
+    def add_servo_preset(self):
+        """Add a new servo preset"""
+        try:
+            new_preset = int(self.new_preset_var.get())
+            if new_preset < 0 or new_preset > 180:
+                raise ValueError(f"Preset {new_preset} out of range (0-180)")
+            
+            if new_preset not in self.servo_presets:
+                self.servo_presets.append(new_preset)
+                self.servo_presets.sort()  # Keep presets sorted
+                self.update_preset_dropdowns()
+                self.update_preset_entries()
+                self.log_status(f"Added servo preset: {new_preset}°")
+            else:
+                self.log_status(f"Preset {new_preset}° already exists")
+        except Exception as e:
+            self.log_status(f"Invalid preset value: {e}")
+
+    def remove_servo_preset(self):
+        """Remove the last servo preset"""
+        if len(self.servo_presets) > 1:  # Keep at least one preset
+            removed = self.servo_presets.pop()
+            self.update_preset_dropdowns()
+            self.update_preset_entries()
+            self.log_status(f"Removed servo preset: {removed}°")
+        else:
+            self.log_status("Cannot remove the last preset")
+
+        # Stepper position presets configuration
+        stepper_presets_config_frame = tk.LabelFrame(settings_frame, text="Configure Stepper Presets")
+        stepper_presets_config_frame.pack(padx=10, pady=5, fill="x")
+        
+        stepper_preset_config_row = tk.Frame(stepper_presets_config_frame)
+        stepper_preset_config_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_config_row, text="Preset Steps:").pack(side=tk.LEFT)
+        
+        self.stepper_preset_entries = []
+        for i, preset in enumerate(self.stepper_presets):
+            preset_var = tk.IntVar(value=preset)
+            entry = tk.Entry(stepper_preset_config_row, textvariable=preset_var, width=4)
+            entry.pack(side=tk.LEFT, padx=1)
+            self.stepper_preset_entries.append(preset_var)
+        
+        stepper_preset_buttons_row = tk.Frame(stepper_presets_config_frame)
+        stepper_preset_buttons_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Button(stepper_preset_buttons_row, text="Apply Presets", command=self.apply_stepper_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(stepper_preset_buttons_row, text="Reset to Defaults", command=self.reset_stepper_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(stepper_preset_buttons_row, text="Save Config", command=self.save_stepper_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(stepper_preset_buttons_row, text="Load Config", command=self.load_stepper_presets).pack(side=tk.LEFT, padx=5)
+
+        # Add/Remove stepper preset controls
+        stepper_preset_modify_row = tk.Frame(stepper_presets_config_frame)
+        stepper_preset_modify_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_modify_row, text="Add New Preset:").pack(side=tk.LEFT)
+        self.new_stepper_preset_var = tk.IntVar(value=20)
+        tk.Entry(stepper_preset_modify_row, textvariable=self.new_stepper_preset_var, width=4).pack(side=tk.LEFT, padx=2)
+        tk.Button(stepper_preset_modify_row, text="Add", command=self.add_stepper_preset).pack(side=tk.LEFT, padx=2)
+        tk.Button(stepper_preset_modify_row, text="Remove Last", command=self.remove_stepper_preset).pack(side=tk.LEFT, padx=5)
+
+        # Remove old stepper presets section and replace with servo config only
+        # Stepper position presets
+        stepper_presets_frame = tk.LabelFrame(settings_frame, text="Quick Stepper Actions")
+        stepper_presets_frame.pack(padx=10, pady=5, fill="x")
+        
+        stepper_preset_row = tk.Frame(stepper_presets_frame)
+        stepper_preset_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_row, text="Quick Steps:", width=10).pack(side=tk.LEFT)
+        
+        for steps in self.stepper_presets:
+            # Increase buttons
+            btn_inc = tk.Button(stepper_preset_row, text=f"+{steps}", width=4,
+                              command=lambda s=steps: self.stepper_preset_increase(s))
+            btn_inc.pack(side=tk.LEFT, padx=1)
+            
+            # Decrease buttons  
+            btn_dec = tk.Button(stepper_preset_row, text=f"-{steps}", width=4,
+                              command=lambda s=steps: self.stepper_preset_decrease(s))
+            btn_dec.pack(side=tk.LEFT, padx=1)
+
+    # ...existing code...
+
+    def apply_stepper_presets(self):
+        try:
+            new_presets = [int(entry.get()) for entry in self.stepper_preset_entries]
+            # Validate presets are positive
+            for preset in new_presets:
+                if preset <= 0:
+                    raise ValueError(f"Preset {preset} must be positive")
+                if preset > 1000:
+                    raise ValueError(f"Preset {preset} too large (max 1000)")
+            
+            self.stepper_presets = new_presets
+            self.update_stepper_preset_dropdown()
+            self.update_stepper_preset_entries()
+            self.update_stepper_preset_buttons()
+            self.log_status(f"Applied stepper presets: {self.stepper_presets}")
+        except Exception as e:
+            self.log_status(f"Invalid stepper preset values: {e}")
+
+    def reset_stepper_presets(self):
+        """Reset stepper presets to default values"""
+        self.stepper_presets = [1, 5, 10, 25, 50, 100]
+        self.update_stepper_preset_dropdown()
+        self.update_stepper_preset_entries()
+        self.update_stepper_preset_buttons()
+        self.log_status("Stepper presets reset to defaults")
+
+    def add_stepper_preset(self):
+        """Add a new stepper preset"""
+        try:
+            new_preset = int(self.new_stepper_preset_var.get())
+            if new_preset <= 0:
+                raise ValueError(f"Preset {new_preset} must be positive")
+            if new_preset > 1000:
+                raise ValueError(f"Preset {new_preset} too large (max 1000)")
+            
+            if new_preset not in self.stepper_presets:
+                self.stepper_presets.append(new_preset)
+                self.stepper_presets.sort()  # Keep presets sorted
+                self.update_stepper_preset_dropdown()
+                self.update_stepper_preset_entries()
+                self.update_stepper_preset_buttons()
+                self.log_status(f"Added stepper preset: {new_preset} steps")
+            else:
+                self.log_status(f"Preset {new_preset} steps already exists")
+        except Exception as e:
+            self.log_status(f"Invalid preset value: {e}")
+
+    def remove_stepper_preset(self):
+        """Remove the last stepper preset"""
+        if len(self.stepper_presets) > 1:  # Keep at least one preset
+            removed = self.stepper_presets.pop()
+            self.update_stepper_preset_dropdown()
+            self.update_stepper_preset_entries()
+            self.update_stepper_preset_buttons()
+            self.log_status(f"Removed stepper preset: {removed} steps")
+        else:
+            self.log_status("Cannot remove the last preset")
+
+    def update_stepper_preset_dropdown(self):
+        """Update stepper preset dropdown with new values"""
+        self.stepper_preset_dropdown['values'] = [f"{steps} step{'s' if steps != 1 else ''}" for steps in self.stepper_presets]
+
+    def update_stepper_preset_entries(self):
+        """Update the stepper preset entry fields to match current presets"""
+        # Clear existing entries
+        for widget in self.stepper_preset_entries:
+            widget.master.destroy()
+        
+        # Find the parent frame
+        stepper_preset_config_row = None
+        parent = self.stepper_preset_entries[0].master.master
+        for widget in parent.winfo_children():
+            if isinstance(widget, tk.Frame):
+                stepper_preset_config_row = widget
+                break
+        
+        if stepper_preset_config_row:
+            # Remove old entries
+            for widget in stepper_preset_config_row.winfo_children():
+                if isinstance(widget, tk.Entry):
+                    widget.destroy()
+            
+            # Add new entries
+            self.stepper_preset_entries = []
+            for i, preset in enumerate(self.stepper_presets):
+                preset_var = tk.IntVar(value=preset)
+                entry = tk.Entry(stepper_preset_config_row, textvariable=preset_var, width=4)
+                entry.pack(side=tk.LEFT, padx=1)
+                self.stepper_preset_entries.append(preset_var)
+
+    def update_stepper_preset_buttons(self):
+        """Update stepper preset buttons in settings tab"""
+        # Find the stepper preset frame
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Notebook):
+                for tab_id in widget.tabs():
+                    tab = widget.nametowidget(tab_id)
+                    if widget.tab(tab_id, "text") == "Settings":
+                        for frame in tab.winfo_children():
+                            if isinstance(frame, tk.LabelFrame) and "Quick Stepper" in frame.cget("text"):
+                                for row in frame.winfo_children():
+                                    if isinstance(row, tk.Frame):
+                                        # Clear existing buttons (except label)
+                                        for widget in row.winfo_children():
+                                            if isinstance(widget, tk.Button):
+                                                widget.destroy()
+                                        
+                                        # Add new preset buttons
+                                        for steps in self.stepper_presets:
+                                            btn_inc = tk.Button(row, text=f"+{steps}", width=4,
+                                                              command=lambda s=steps: self.stepper_preset_increase(s))
+                                            btn_inc.pack(side=tk.LEFT, padx=1)
+                                            
+                                            btn_dec = tk.Button(row, text=f"-{steps}", width=4,
+                                                              command=lambda s=steps: self.stepper_preset_decrease(s))
+                                            btn_dec.pack(side=tk.LEFT, padx=1)
+                                        return
+
+    def save_stepper_presets(self):
+        """Save stepper presets to a configuration file"""
+        try:
+            import json
+            config = {'stepper_presets': self.stepper_presets}
+            with open('stepper_config.json', 'w') as f:
+                json.dump(config, f)
+            self.log_status("Stepper presets saved to stepper_config.json")
+        except Exception as e:
+            self.log_status(f"Error saving stepper presets: {e}")
+
+    def load_stepper_presets(self):
+        """Load stepper presets from a configuration file"""
+        try:
+            import json
+            with open('stepper_config.json', 'r') as f:
+                config = json.load(f)
+            self.stepper_presets = config.get('stepper_presets', [1, 5, 10, 25, 50, 100])
+            self.update_stepper_preset_dropdown()
+            self.update_stepper_preset_entries()
+            self.update_stepper_preset_buttons()
+            self.log_status("Stepper presets loaded from stepper_config.json")
+        except FileNotFoundError:
+            self.log_status("No stepper configuration file found, using defaults")
+        except Exception as e:
+            self.log_status(f"Error loading stepper presets: {e}")
+
+    # ...existing code...
 
 # --- Unit and System Tests ---
 def run_unit_tests():

@@ -375,53 +375,29 @@ Test results are displayed in the GUI for easy verification.
 This script is provided as-is for educational and research purposes.  
 Adapt and modify as needed.
 
-# Functionality Check
+# Recent Updates
 
-## Features in README
+### Enhanced User Interface
+- **Real-time Status Logging:** All system activities now display in a timestamped status log within the Main tab GUI
+- **Visual Force Status Indicator:** Color-coded indicator showing force range status (Green: Within Range, Red: Outside Range)
+- **Dropdown Preset Controls:** Servo and stepper presets accessible via dropdown menus in the Main tab
+- **Live Angle Display:** Real-time angle values displayed next to servo sliders
+- **Scrollable Status Log:** Comprehensive activity logging with auto-scroll and clear functionality
 
-- GUI for controlling servo angles and monitoring force
-- Manual and automatic force adjustment (stepper motor)
-- PID control for force feedback
-- Pin selection for hardware
-- Enable/disable servo and stepper control
-- Force threshold adjustment
-- PID parameter adjustment
-- Unit and system tests via GUI
-- Works without hardware (simulated actions)
-- Error logging to syslog
+### Improved Hardware Compatibility
+- **Enhanced Error Handling:** Graceful fallback when GPIO libraries are not available (lgpio, RPi.GPIO, pigpio)
+- **Simulation Mode Support:** Full GUI functionality available without physical hardware
+- **Serial Port Resilience:** Continues operation even when load cell serial port is unavailable
+- **Development-Friendly:** Can run on non-Raspberry Pi systems for GUI development and testing
 
-## Matches in Code
+### Better User Experience
+- **Timestamp Logging:** All activities logged with precise timestamps for better tracking
+- **Color-coded Status:** Visual indicators use intuitive color schemes (Green: Good, Red: Alert, Blue: Manual)
+- **Dropdown Navigation:** Quick access to presets without button clutter
+- **Auto-scroll Logging:** Status log automatically scrolls to show latest activities
+- **Robust Initialization:** Proper component initialization order prevents startup errors
 
-- **GUI for servo and force:**  
-  `servo_force_gui` provides sliders for servo angles, force threshold, and status display.
-
-- **Manual/automatic force adjustment:**  
-  Manual buttons in GUI (`App` class), automatic PID logic in `Controller`.
-
-- **PID control:**  
-  PID parameters and logic in `Controller`.
-
-- **Pin selection:**  
-  GUI tab for pin selection, updates class variables.
-
-- **Enable/disable controls:**  
-  Checkboxes in GUI, flags in `Controller`.
-
-- **Force threshold adjustment:**  
-  Slider in GUI, buttons for increment/decrement.
-
-- **PID parameter adjustment:**  
-  GUI entries and apply button.
-
-- **Unit/system tests:**  
-  `run_unit_tests` and `run_system_tests` functions, accessible from GUI.
-
-- **Works without hardware:**  
-  All hardware classes simulate actions if hardware is unavailable.
-
-- **Error logging:**  
-  Errors are logged to syslog in `main` and serial port setup.
-
-## Conclusion
-
-**All major features described in the README are implemented and present in the code.**
+### Development and Testing Features
+- **Hardware-Independent GUI:** Interface works fully in simulation mode for development
+- **Clear Error Messages:** Informative error handling for missing dependencies
+- **Flexible Configuration:** All hardware settings configurable through GUI without code changes
