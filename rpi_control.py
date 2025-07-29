@@ -9,6 +9,8 @@ import signal
 import sys
 import traceback
 import syslog
+import glob
+import serial.tools.list_ports
 
 # --- Stepper Motor Control ---
 class StepperMotor:
@@ -83,16 +85,82 @@ class ServoController:
             else:
                 print(f"[SIM] Servo {i+1} cleanup")
 
-# --- Load Cell Reading ---
-def read_force(ser):
-    if ser is None:
-        # Simulate force value for GUI/testing
-        return 0.0
-    line = ser.readline().decode('utf-8').strip()
+# --- Load Cell Port Detection ---
+def detect_load_cell_port():
+    """Auto-detect the load cell serial port by checking common device names and descriptors"""
+    # List of potential device patterns to check
+    device_patterns = [
+        '/dev/ttyUSB*',      # USB to Serial adapters
+        '/dev/ttyACM*',      # Arduino/microcontroller devices
+        '/dev/ttyAMA*',      # Raspberry Pi UART
+        '/dev/serial/by-id/*'  # Persistent device names
+    ]
+    
+    # Check using pyserial's port listing (more reliable)
     try:
-        return float(line)
-    except ValueError:
-        return None
+        ports = serial.tools.list_ports.comports()
+        for port in ports:
+            # Check for common load cell/HX711 device descriptors
+            description_lower = port.description.lower()
+            manufacturer_lower = (port.manufacturer or '').lower()
+            
+            # Common identifiers for USB-Serial adapters used with HX711
+            if any(keyword in description_lower for keyword in [
+                'ch340', 'ch341',           # Common Chinese USB-Serial chips
+                'cp210',                     # Silicon Labs chips
+                'ft232', 'ftdi',            # FTDI chips
+                'pl2303',                   # Prolific chips
+                'arduino', 'nano', 'uno',   # Arduino boards with HX711
+                'usb-serial', 'usb to uart',
+                'hx711', 'load cell'        # Direct mentions
+            ]):
+                print(f"Potential load cell device found: {port.device} - {port.description}")
+                return port.device
+                
+            # Also check manufacturer
+            if any(keyword in manufacturer_lower for keyword in [
+                'arduino', 'ftdi', 'silicon labs', 'prolific'
+            ]):
+                print(f"Potential load cell device found by manufacturer: {port.device} - {port.manufacturer}")
+                return port.device
+    except Exception as e:
+        print(f"Error using pyserial port detection: {e}")
+    
+    # Fallback: Check filesystem patterns
+    for pattern in device_patterns:
+        devices = glob.glob(pattern)
+        for device in sorted(devices):  # Sort for consistent ordering
+            try:
+                # Try to open the device briefly to see if it exists and is accessible
+                with serial.Serial(device, 9600, timeout=0.1) as test_ser:
+                    print(f"Found accessible serial device: {device}")
+                    return device
+            except (serial.SerialException, PermissionError):
+                continue
+    
+    print("No load cell serial device auto-detected")
+    return None
+
+def test_load_cell_communication(port, timeout=2):
+    """Test if the given port has a load cell by trying to read data"""
+    try:
+        with serial.Serial(port, 9600, timeout=timeout) as ser:
+            # Try to read a few lines to see if we get numeric data
+            for _ in range(5):
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                if line:
+                    try:
+                        # If we can parse it as a float, it's likely force data
+                        float(line)
+                        print(f"Load cell confirmed on {port}: received data '{line}'")
+                        return True
+                    except ValueError:
+                        continue
+        print(f"No valid load cell data received from {port}")
+        return False
+    except Exception as e:
+        print(f"Failed to test load cell communication on {port}: {e}")
+        return False
 
 # --- Shared Data for GUI/Main Thread Communication ---
 class SharedData:
@@ -236,25 +304,79 @@ class Controller:
         self.stepper = StepperMotor()
         self.servo_ctrl = ServoController()
 
-        SERIAL_PORT = '/dev/ttyUSB0'
+        # Auto-detect load cell serial port
+        detected_port = detect_load_cell_port()
+        if detected_port:
+            print(f"Auto-detected potential load cell port: {detected_port}")
+            # Test if it's actually a load cell
+            if test_load_cell_communication(detected_port):
+                SERIAL_PORT = detected_port
+                print(f"Load cell confirmed and connected on: {SERIAL_PORT}")
+            else:
+                print(f"Device on {detected_port} doesn't appear to be a load cell, trying manual fallback")
+                SERIAL_PORT = '/dev/ttyUSB0'  # Fallback
+        else:
+            print("No load cell auto-detected, using default port")
+            SERIAL_PORT = '/dev/ttyUSB0'  # Default fallback
+
         BAUDRATE = 9600
-        FORCE_TARGET = 500
-        FORCE_TOLERANCE = 10
+        FORCE_TARGET = 500  # Adjust for MK10 range (typically 0-10kg = 0-10000g)
+        FORCE_TOLERANCE = 10  # Adjust tolerance for MK10 precision
 
         self.shared = SharedData(FORCE_TARGET, FORCE_TOLERANCE)
 
-        # Serial port handling with error reporting to syslog
-        try:
-            self.ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
-        except Exception as e:
+        # Serial port handling with auto-detection and error reporting
+        self.ser = None
+        self.serial_port = SERIAL_PORT
+        self.baudrate = BAUDRATE
+        
+        # Try multiple connection attempts
+        connection_attempts = [
+            (SERIAL_PORT, BAUDRATE),
+            ('/dev/ttyUSB0', BAUDRATE),    # Common default
+            ('/dev/ttyUSB1', BAUDRATE),    # Alternative USB port
+            ('/dev/ttyACM0', BAUDRATE),    # Arduino-style devices
+            ('/dev/ttyAMA0', BAUDRATE),    # RPi hardware UART
+        ]
+        
+        for port, baud in connection_attempts:
+            try:
+                print(f"Attempting to connect to load cell on {port} at {baud} baud...")
+                test_ser = serial.Serial(port, baud, timeout=1)
+                
+                # Quick test to see if we get data
+                if test_load_cell_communication(port, timeout=1):
+                    self.ser = test_ser
+                    self.serial_port = port
+                    self.baudrate = baud
+                    print(f"Successfully connected to load cell on {port}")
+                    break
+                else:
+                    test_ser.close()
+                    
+            except Exception as e:
+                print(f"Failed to connect to {port}: {e}")
+                continue
+        
+        if self.ser is None:
             syslog.openlog("rpi_control")
-            syslog.syslog(syslog.LOG_ERR, f"Serial port error: {e}\n{traceback.format_exc()}")
+            syslog.syslog(syslog.LOG_WARNING, f"No load cell found on any serial port, running in simulation mode")
             syslog.closelog()
-            print(f"Serial port error: {e}")
-            self.ser = None
+            print("No load cell detected - running in simulation mode")
 
-        self.force_threshold = FORCE_TARGET
-        self.running = True
+        # --- MK10 Load Cell Configuration Notes ---
+        # - Capacity: 10kg (10000g)
+        # - Requires proper calibration with known weights
+        # - HX711 amplifier needs calibration factor adjustment
+        # - Tension-based: positive values indicate pulling force
+        self.log_status("MK10 Load Cell Configuration:")
+        self.log_status("- Capacity: 10kg (10000g)")
+        self.log_status("- Ensure HX711 is properly calibrated")
+        self.log_status("- Positive values = tension force")
+        if self.ser:
+            self.log_status(f"- Connected on: {self.serial_port}")
+        else:
+            self.log_status("- No load cell detected (simulation mode)")
 
         # PID parameters
         self.pid_kp = 0.1  # Proportional gain
@@ -327,6 +449,29 @@ class Controller:
     def decrease_threshold(self):
         self.shared.force_threshold -= 1
         self.log_status(f"Force threshold decreased to {self.shared.force_threshold}")
+
+    def reconnect_load_cell(self):
+        """Attempt to reconnect to the load cell if connection was lost"""
+        if self.ser is not None:
+            try:
+                self.ser.close()
+            except:
+                pass
+            self.ser = None
+        
+        # Try to auto-detect again
+        detected_port = detect_load_cell_port()
+        if detected_port and test_load_cell_communication(detected_port):
+            try:
+                self.ser = serial.Serial(detected_port, self.baudrate, timeout=1)
+                self.serial_port = detected_port
+                self.log_status(f"Reconnected to load cell on {detected_port}")
+                return True
+            except Exception as e:
+                self.log_status(f"Failed to reconnect to {detected_port}: {e}")
+        
+        self.log_status("Load cell reconnection failed - continuing in simulation mode")
+        return False
 
 # --- App class for Tkinter GUI ---
 class App:
@@ -1083,8 +1228,6 @@ class App:
         except Exception as e:
             self.log_status(f"Error loading stepper presets: {e}")
 
-    # ...existing code...
-
     def update_preset_entries(self):
         """Update the preset entry fields to match current presets"""
         # Clear existing entries
@@ -1176,7 +1319,26 @@ class App:
         # Also print to terminal for debugging
         print(message)
 
-    # ...existing code...
+# --- Load Cell Reading with auto-reconnection ---
+def read_force(ser):
+    if ser is None:
+        # Simulate force value for GUI/testing
+        return 0.0
+    
+    try:
+        line = ser.readline().decode('utf-8').strip()
+        if not line:
+            return None
+        
+        # MK10 load cell with HX711 should output force values in grams
+        # Ensure proper calibration and scaling in HX711 firmware/setup
+        return float(line)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    except serial.SerialException as e:
+        print(f"Serial communication error: {e}")
+        # Could trigger reconnection attempt here
+        return None
 
 # --- Unit and System Tests ---
 def run_unit_tests():
