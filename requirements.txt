@@ -1,3 +1,11 @@
-gpiozero
-pyserial
-tk
+gpiozero>=1.6.2
+pyserial>=3.4
+numpy>=1.19.5
+matplotlib>=3.3.4
+pygame>=2.0.1
+psutil>=5.8.0
+pyserial-tools>=0.1
+colorama>=0.4.4
+# Optional: Development and testing dependencies
+# pytest>=6.2.4
+# pytest-cov>=2.12.0
