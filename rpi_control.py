@@ -495,8 +495,7 @@ class App:
         self.root = root
         self.root.title("RPi Control")
         self.controller = Controller()
-        self.controller.set_app(self)  # Set reference for logging
-
+        
         self.servo_control_enabled = tk.BooleanVar(value=True)
         self.stepper_control_enabled = tk.BooleanVar(value=True)
         self.auto_stepper_mode = tk.BooleanVar(value=False)
@@ -809,6 +808,9 @@ class App:
         # Start a thread to sync enable flags with Controller
         self.sync_thread = threading.Thread(target=self.sync_enable_flags, daemon=True)
         self.sync_thread.start()
+        
+        # Set reference for logging AFTER GUI is fully initialized
+        self.controller.set_app(self)  # Set reference for logging
 
     def update_servo_controls(self):
         self.controller.servo_enabled = self.servo_control_enabled.get()
