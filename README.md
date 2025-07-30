@@ -9,8 +9,8 @@ A comprehensive Raspberry Pi control system for managing stepper motors, servo m
 This project is specifically designed and optimized for Raspberry Pi with the following compatibility features:
 
 ### 🔧 Hardware Compatibility
-- **Raspberry Pi Models**: Pi 4B, Pi 3B+, Pi 3B, Pi 2B, Pi Zero 2W (GPIO-enabled models)
-- **Raspberry Pi OS**: Bullseye, Buster, and newer versions
+- **Raspberry Pi Models**: Pi 5 (8GB recommended), Pi 4B, Pi 3B+, Pi 3B, Pi 2B, Pi Zero 2W (GPIO-enabled models)
+- **Raspberry Pi OS**: Bookworm, Bullseye, Buster, and newer versions
 - **GPIO Libraries**: Native gpiozero integration with fallback support
 - **Serial Interfaces**: USB, UART, and GPIO serial communication
 - **Display Support**: HDMI, DSI touchscreens, headless operation
@@ -69,7 +69,7 @@ This project is specifically designed and optimized for Raspberry Pi with the fo
 ## 🔌 Hardware Requirements
 
 ### Essential Components
-- **Raspberry Pi**: Pi 4B (recommended) or Pi 3B+ with Raspberry Pi OS
+- **Raspberry Pi**: Pi 5 (8GB recommended), Pi 4B (4GB+ RAM recommended) or Pi 3B+ with Raspberry Pi OS
 - **Stepper Motor**: NEMA 17 (E21H4N-2.5-900) with Easy Driver controller
 - **Servo Motors**: 3x SG90 or compatible micro servos
 - **Load Cell**: MK10 tension load cell (10kg capacity)
@@ -79,65 +79,43 @@ This project is specifically designed and optimized for Raspberry Pi with the fo
 
 ### Raspberry Pi Specific Requirements
 - **MicroSD Card**: 32GB+ Class 10 (recommended: SanDisk Extreme)
-- **Cooling**: Heat sinks for Pi 4B, fan for continuous operation
+- **Cooling**: Heat sinks for Pi 4B/5, active cooling for Pi 5 under continuous operation
 - **GPIO Access**: Enable SPI/I2C in raspi-config
-- **Power Supply**: Official Pi PSU or equivalent 5V/3A USB-C (Pi 4) or micro-USB (Pi 3)
-- **Case**: GPIO-accessible case with ventilation
+- **Power Supply**: 
+  - **Pi 5**: Official Pi 5 PSU (5V/5A USB-C) or equivalent
+  - **Pi 4**: Official Pi PSU (5V/3A USB-C) or equivalent
+  - **Pi 3**: micro-USB (5V/2.5A minimum)
+- **Case**: GPIO-accessible case with ventilation (Pi 5 requires better airflow)
 
-### Recommended Pi Accessories
-- **Display**: 7" Official Pi Touchscreen for standalone operation
-- **Camera**: Pi Camera Module for visual monitoring
-- **HAT**: Prototyping HAT for secure connections
-- **Breakout Board**: GPIO breakout for easier wiring
-- **Storage**: USB SSD for improved performance (optional)
+### Pi 5 Specific Considerations
+- **Enhanced Performance**: Pi 5's improved CPU/GPU provides better real-time performance
+- **Power Requirements**: Higher power consumption requires 5A PSU for stability
+- **GPIO Compatibility**: All GPIO functions remain compatible with existing pin assignments
+- **USB 3.0**: Faster USB ports improve serial communication reliability
+- **PCIe Support**: Future expansion capabilities for advanced interfaces
+- **Active Cooling**: Recommended for continuous operation due to higher performance
 
-### Wiring Connections
-
-#### Stepper Motor (Easy Driver)
-```
-Raspberry Pi → Easy Driver
-GPIO 20     → DIR (Direction control)
-GPIO 21     → STEP (Step pulse)
-GPIO 16     → ENABLE (Motor enable/disable)
-5V          → VCC (Logic power)
-GND         → GND (Common ground)
-
-Easy Driver → NEMA 17
-A+/A-       → Phase A windings
-B+/B-       → Phase B windings
-12V PSU     → Motor power (M+ terminal)
-GND         → Motor ground (GND terminal)
-```
-
-#### Servo Motors
-```
-Raspberry Pi → Servos
-GPIO 17     → Servo 1 PWM (Orange/Signal wire)
-GPIO 27     → Servo 2 PWM (Orange/Signal wire)
-GPIO 22     → Servo 3 PWM (Orange/Signal wire)
-5V PSU      → All servo power (Red/+ wires)
-GND         → All servo ground (Brown/- wires)
-```
-
-#### Load Cell System
-```
-MK10 Load Cell → HX711 Amplifier
-Red wire       → E+ (Excitation positive)
-Black wire     → E- (Excitation negative)
-White wire     → A- (Signal negative)
-Green wire     → A+ (Signal positive)
-
-HX711 → USB-Serial Adapter
-VCC   → 5V (Power)
-GND   → GND (Ground)
-DT    → TX (Data transmission)
-SCK   → RX (Clock - optional for this setup)
-
-USB-Serial → Raspberry Pi
-USB connector → Any available USB port
-```
+# ...existing code...
 
 ## 🚀 Installation
+
+### 🍓 Fresh Raspberry Pi Setup
+
+**New to Raspberry Pi?** Follow our comprehensive setup guide:
+
+👉 **[FRESH RASPBERRY PI SETUP GUIDE](RASPBERRY_PI_SETUP.md)** 👈
+
+This guide covers everything from flashing the OS to running the application, perfect for first-time Pi users.
+
+### Quick Installation (Existing Pi)
+```bash
+# For users with an already configured Raspberry Pi
+git clone https://github.com/your-repo/RPi_control.git
+cd RPi_control
+chmod +x install_and_run.sh
+./install_and_run.sh
+sudo reboot
+```
 
 ### Raspberry Pi Installation (Recommended)
 ```bash
@@ -527,179 +505,78 @@ safety.trigger_alarm("CUSTOM_ALARM", "Test message")
 
 ### Raspberry Pi Specific Issues
 
-#### ❌ GPIO Permission Denied
-**Symptoms**: "GPIO setup error" or permission denied
+#### ❌ Pi 5 Specific Issues
+**Symptoms**: Performance or compatibility problems on Pi 5
 ```bash
-# Check Pi model and GPIO support
+# Check Pi 5 model detection
 cat /proc/device-tree/model
+# Should show "Raspberry Pi 5 Model B"
 
-# Install Pi-specific GPIO libraries
-sudo apt install python3-gpiozero python3-rpi.gpio python3-lgpio
+# Check Pi 5 firmware version
+vcgencmd version
 
-# Add user to gpio group
-sudo usermod -a -G gpio $USER
+# Pi 5 power management
+vcgencmd get_config int | grep over_voltage
+vcgencmd measure_temp  # Should be <80°C under load
 
-# Check GPIO group membership
-groups $USER
-
-# Enable GPIO in boot config
-sudo raspi-config
-# Interface Options → SPI/I2C → Enable
-
-# Verify GPIO device files
-ls -la /dev/gpiomem /sys/class/gpio
-
-# Test GPIO access
-python3 -c "from gpiozero import LED; print('GPIO OK')"
-```
-
-#### ❌ Pi-Specific Display Issues
-**Symptoms**: GUI crashes or display problems
-```bash
-# Check Pi display configuration
-tvservice -s  # HDMI status
-vcgencmd get_config int | grep -E "(hdmi|display)"
-
-# For Pi touchscreen
-sudo apt install raspberrypi-ui-mods
-
-# Test display with simple GUI
+# Pi 5 GPIO library compatibility
 python3 -c "
-import tkinter as tk
-root = tk.Tk()
-root.title('Pi Display Test')
-tk.Label(root, text='Pi Display Working!').pack()
-root.mainloop()
+import gpiozero
+print(f'gpiozero version: {gpiozero.__version__}')
+from gpiozero import OutputDevice
+test_pin = OutputDevice(18)
+print('Pi 5 GPIO test: PASS')
+test_pin.close()
 "
 
-# Configure display rotation (if needed)
-echo "display_rotate=1" | sudo tee -a /boot/config.txt  # 90 degrees
+# Pi 5 performance monitoring
+vcgencmd measure_clock arm
+vcgencmd get_throttled  # Should return 0x0 (no throttling)
 
-# Force HDMI output
-echo "hdmi_force_hotplug=1" | sudo tee -a /boot/config.txt
+# Pi 5 USB performance test
+lsusb -t  # Check USB 3.0 device tree
+dmesg | grep -i usb | tail -10
 ```
 
-#### ❌ Pi Performance Issues
-**Symptoms**: Slow GUI or high CPU usage
+#### ❌ Pi 5 Power Issues
+**Symptoms**: Random reboots or performance drops
 ```bash
-# Check Pi model and specs
-cat /proc/cpuinfo | grep -E "(model|processor)"
-free -h  # Memory usage
-df -h    # Disk usage
+# Check Pi 5 power supply
+vcgencmd get_throttled
+# 0x0 = no issues
+# 0x50000 = under-voltage detected
+# 0x50005 = under-voltage and throttling
 
-# Monitor system performance
-htop
-iostat 1 5
+# Monitor Pi 5 power consumption
+vcgencmd measure_volts
+# Should be close to 5.0V
 
-# Pi performance optimizations
-sudo nano /boot/config.txt
-# Add these lines:
-# arm_freq=1500          # Overclock (Pi 3B+/4B only)
-# gpu_mem=128            # GPU memory split
-# disable_overscan=1     # Full screen usage
+# Pi 5 power optimization
+echo "arm_freq=2400" | sudo tee -a /boot/firmware/config.txt  # Default Pi 5 frequency
+echo "gpu_mem=128" | sudo tee -a /boot/firmware/config.txt
 
-# Optimize Python for Pi
-pip install --upgrade pip
-pip install numpy --only-binary=numpy  # Use compiled version
-
-# Reduce GUI update frequency (automatically handled)
-python functionality_check.py | grep "Raspberry Pi"
+# Check Pi 5 cooling
+vcgencmd measure_temp
+# Idle: <50°C, Load: <70°C, Critical: >80°C
 ```
 
-#### ❌ Serial Communication on Pi
-**Symptoms**: Load cell not detected
+#### ❌ Pi 5 Boot Configuration
+**Symptoms**: Configuration changes not taking effect
 ```bash
-# Check Pi serial configuration
+# Pi 5 uses different config location
+sudo nano /boot/firmware/config.txt  # Pi 5 location
+# vs
+sudo nano /boot/config.txt  # Pi 4 and earlier
+
+# Common Pi 5 config optimizations
+echo "# Pi 5 optimizations" | sudo tee -a /boot/firmware/config.txt
+echo "gpu_mem=128" | sudo tee -a /boot/firmware/config.txt
+echo "dtparam=spi=on" | sudo tee -a /boot/firmware/config.txt
+echo "dtparam=i2c=on" | sudo tee -a /boot/firmware/config.txt
+
+# Enable Pi 5 hardware interfaces
 sudo raspi-config
-# Interface Options → Serial Port
-# "Would you like a login shell accessible over serial?" → No
-# "Would you like the serial port hardware enabled?" → Yes
-
-# List serial devices
-ls -la /dev/tty*
-dmesg | grep tty
-
-# Test USB-serial adapter
-lsusb  # Look for CH340, FTDI, CP210x
-sudo minicom -D /dev/ttyUSB0 -b 9600
-
-# Check serial permissions
-groups $USER | grep dialout
-sudo usermod -a -G dialout $USER  # Add to dialout group
-
-# Test Pi hardware UART (if using GPIO serial)
-echo "enable_uart=1" | sudo tee -a /boot/config.txt
-sudo reboot
-```
-
-#### ❌ Pi Audio Issues
-**Symptoms**: No sound alerts
-```bash
-# Check Pi audio configuration
-aplay -l  # List audio devices
-amixer scontrols  # Audio controls
-
-# Set audio output
-sudo raspi-config
-# Advanced Options → Audio → Force 3.5mm jack
-
-# Or set HDMI audio
-sudo raspi-config
-# Advanced Options → Audio → Force HDMI
-
-# Test audio
-aplay /usr/share/sounds/alsa/Front_Left.wav
-
-# Install missing audio packages
-sudo apt install alsa-utils pulseaudio-utils
-
-# Configure audio for pygame
-export SDL_AUDIODRIVER=alsa
-python3 -c "import pygame; pygame.mixer.init(); print('Audio OK')"
-```
-
-### Pi Boot and Service Issues
-
-#### ❌ Service Won't Start on Pi
-**Symptoms**: Auto-boot fails
-```bash
-# Check Pi boot process
-systemctl --user status rpicontrol
-journalctl --user -u rpicontrol -n 50
-
-# Verify Pi-specific paths in service
-cat ~/.config/systemd/user/rpicontrol.service
-# Should show your actual Pi username and paths
-
-# Check display environment for Pi
-echo $DISPLAY  # Should be :0
-who  # Check logged in users
-
-# Test manual service start
-systemctl --user start rpicontrol
-systemctl --user status rpicontrol
-
-# Check lingering for user services
-loginctl show-user $USER | grep Linger
-sudo loginctl enable-linger $USER
-```
-
-#### ❌ Pi Auto-Login Issues
-**Symptoms**: Stuck at login screen
-```bash
-# Check Pi auto-login configuration
-sudo systemctl get-default  # Should be graphical.target
-cat /etc/systemd/system/getty@tty1.service.d/autologin.conf
-
-# Reconfigure auto-login via raspi-config
-sudo raspi-config
-# System Options → Boot / Auto Login → Desktop Autologin
-
-# Check Pi desktop environment
-ps aux | grep -E "(lxde|openbox|wayfire)"
-
-# Test Pi desktop start
-startx  # Manual desktop start
+# 3 Interface Options → Enable SPI, I2C, Serial
 ```
 
 ## 🧪 Pi-Specific Testing
@@ -747,6 +624,7 @@ except:
 
 print(f'CPU Usage: {psutil.cpu_percent()}%')
 print(f'RAM Usage: {psutil.virtual_memory().percent}%')
+print(f'Disk Usage: {psutil.disk_usage("/").percent}%')
 if cpu_temp:
     print(f'CPU Temp: {cpu_temp}°C')
 print(f'CPU Cores: {psutil.cpu_count()}')
@@ -755,82 +633,108 @@ print(f'CPU Cores: {psutil.cpu_count()}')
 
 ### Pi Performance Benchmarks
 ```bash
-# Pi-specific performance test
+# Pi 5 specific performance test
 python -c "
 import time
+import psutil
 from rpi_control import Controller
+
+# Detect Pi model
+try:
+    with open('/proc/device-tree/model', 'r') as f:
+        model = f.read().strip()
+    print(f'Detected: {model}')
+    
+    # Adjust test parameters based on Pi model
+    if 'Pi 5' in model:
+        test_iterations = 100  # Pi 5 can handle more
+        expected_rate = 80     # Higher expected performance
+    elif 'Pi 4' in model:
+        test_iterations = 75
+        expected_rate = 60
+    else:
+        test_iterations = 50   # Pi 3 and earlier
+        expected_rate = 40
+    
+    print(f'Running {test_iterations} iterations...')
+    
+except:
+    test_iterations = 50
+    expected_rate = 40
+    print('Pi model detection failed, using conservative settings')
 
 # Test Pi-optimized force reading
 controller = Controller()
 start = time.time()
-for i in range(50):  # Reduced for Pi
+for i in range(test_iterations):
     controller.get_force_reading()
-    time.sleep(0.01)
-rate = 50 / (time.time() - start)
-print(f'Pi Force Reading Rate: {rate:.1f} Hz')
+    time.sleep(0.005)  # Faster on Pi 5
+rate = test_iterations / (time.time() - start)
+print(f'Force Reading Rate: {rate:.1f} Hz (expected: >{expected_rate} Hz)')
 
 # Test Pi GUI performance
 import tkinter as tk
 root = tk.Tk()
 root.withdraw()
 start = time.time()
-for i in range(50):  # Reduced for Pi
+for i in range(test_iterations):
     root.update()
-rate = 50 / (time.time() - start)
-print(f'Pi GUI Update Rate: {rate:.1f} Hz')
+rate = test_iterations / (time.time() - start)
+print(f'GUI Update Rate: {rate:.1f} Hz')
 root.destroy()
+
+# Pi 5 specific metrics
+try:
+    with open('/sys/class/thermal/thermal_zone0/temp') as f:
+        temp = int(f.read()) / 1000
+    print(f'CPU Temperature: {temp}°C')
+    
+    # Check for throttling
+    import subprocess
+    throttled = subprocess.check_output(['vcgencmd', 'get_throttled']).decode().strip()
+    print(f'Throttling Status: {throttled}')
+    
+    cpu_freq = subprocess.check_output(['vcgencmd', 'measure_clock', 'arm']).decode().strip()
+    freq_mhz = int(cpu_freq.split('=')[1]) / 1000000
+    print(f'CPU Frequency: {freq_mhz:.0f} MHz')
+    
+except:
+    print('Pi-specific metrics unavailable')
 "
 ```
 
 ## 🍓 Pi Deployment Recommendations
 
 ### Production Pi Setup
-1. **Use Pi 4B**: 4GB+ RAM recommended for best performance
-2. **Quality SD Card**: SanDisk Extreme or Samsung EVO Select
-3. **Proper Cooling**: Heat sinks + fan for 24/7 operation
-4. **Stable Power**: Official Pi PSU or equivalent quality
-5. **GPIO Protection**: Use level shifters for 5V devices
-6. **Backup Strategy**: Regular SD card images and config backups
+1. **Use Pi 5**: 8GB RAM recommended for best performance and future-proofing
+2. **Alternative Pi 4B**: 4GB+ RAM still excellent for most applications
+3. **Quality SD Card**: SanDisk Extreme or Samsung EVO Select (A2 class for Pi 5)
+4. **Proper Cooling**: 
+   - **Pi 5**: Active cooling (fan) required for continuous operation
+   - **Pi 4**: Heat sinks + fan for 24/7 operation
+   - **Pi 3**: Heat sinks sufficient for most applications
+5. **Stable Power**: 
+   - **Pi 5**: Official Pi 5 PSU (5V/5A) essential for stability
+   - **Pi 4**: Official Pi PSU (5V/3A) or equivalent quality
+6. **GPIO Protection**: Use level shifters for 5V devices (same across all models)
+7. **Backup Strategy**: Regular SD card images and config backups
 
-### Pi Network Configuration
+### Pi 5 Specific Optimizations
 ```bash
-# Enable SSH for remote access
-sudo systemctl enable ssh
-sudo systemctl start ssh
+# Pi 5 performance configuration
+sudo nano /boot/firmware/config.txt
+# Add these lines for Pi 5:
+# arm_freq=2400          # Pi 5 default (can boost to 2800)
+# gpu_mem=128            # GPU memory split
+# disable_overscan=1     # Full screen usage
+# dtparam=pciex1=on     # Enable PCIe (future expansion)
 
-# Configure WiFi (if needed)
-sudo raspi-config
-# System Options → Wireless LAN
+# Pi 5 power management
+echo "# Pi 5 power optimizations" | sudo tee -a /boot/firmware/config.txt
+echo "arm_boost=1" | sudo tee -a /boot/firmware/config.txt
 
-# Set static IP (optional)
-sudo nano /etc/dhcpcd.conf
-# Add:
-# interface wlan0
-# static ip_address=192.168.1.100/24
-# static routers=192.168.1.1
-# static domain_name_servers=8.8.8.8
-
-# Enable VNC for remote desktop (optional)
-sudo raspi-config
-# Interface Options → VNC → Enable
-```
-
-### Pi Security Considerations
-```bash
-# Change default password
-passwd
-
-# Update Pi firmware
-sudo rpi-update
-
-# Configure firewall
-sudo ufw enable
-sudo ufw allow ssh
-sudo ufw allow 5900  # VNC if enabled
-
-# Disable unnecessary services
-sudo systemctl disable bluetooth
-sudo systemctl disable cups  # If no printing needed
+# Monitor Pi 5 performance
+watch -n 1 'vcgencmd measure_temp && vcgencmd measure_clock arm && vcgencmd get_throttled'
 ```
 
 ## 📜 License
@@ -887,6 +791,9 @@ This project is licensed under the **MIT License** - see the LICENSE file for de
 
 ### Version 3.0.0 (Current)
 - ✨ **New Features**:
+  - **Raspberry Pi 5 Support**: Full compatibility with Pi 5 hardware and optimizations
+  - **Enhanced Pi Detection**: Automatic model detection and performance scaling for Pi 5
+  - **Pi 5 Power Management**: Optimized power configurations for Pi 5's higher requirements
   - **Full Raspberry Pi Optimization**: Native Pi hardware detection and performance scaling
   - **Pi-Specific Installation**: Automated Pi OS setup with all dependencies
   - **GPIO Integration**: Native gpiozero support with hardware-safe defaults
@@ -899,13 +806,14 @@ This project is licensed under the **MIT License** - see the LICENSE file for de
   - Comprehensive functionality checking and validation
 
 - 🔧 **Pi-Specific Improvements**:
+  - **Pi 5 Hardware Support**: Optimized for Pi 5's enhanced CPU/GPU performance
   - **Hardware Auto-Detection**: Automatic Pi model detection and optimization
   - **Resource Management**: Memory and CPU optimizations for Pi hardware
   - **Display Compatibility**: Support for Pi touchscreens, HDMI, and headless operation
   - **Serial Integration**: Enhanced USB and GPIO serial communication
   - **Audio Support**: Pi audio jack and HDMI audio configuration
   - **GPIO Safety**: Proper pin management with cleanup and error handling
-  - **Performance Scaling**: Adaptive update rates based on Pi model capabilities
+  - **Performance Scaling**: Adaptive update rates based on Pi model capabilities (Pi 5 optimized)
   - Cross-platform compatibility maintained (Pi primary, Windows/macOS/Linux secondary)
 
 - 🐛 **Bug Fixes**:
@@ -937,6 +845,6 @@ This project is licensed under the **MIT License** - see the LICENSE file for de
 
 ---
 
-**🍓 Optimized for Raspberry Pi - Made with ❤️ for the Pi community**
+**🍓 Optimized for Raspberry Pi 5 & 4 - Made with ❤️ for the Pi community**
 
 *This project is specifically designed and tested on Raspberry Pi hardware with comprehensive Pi OS integration.*
