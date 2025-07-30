@@ -32,7 +32,7 @@ class StepperMotor:
             self.dir = self.step = self.enable = None
             self.hw_available = False
 
-    def step(self, steps, direction):
+    def step_motor(self, steps, direction):
         if self.hw_available and self.dir is not None and self.step is not None:
             self.dir.value = 1 if direction else 0
             for _ in range(steps):
@@ -43,6 +43,10 @@ class StepperMotor:
         else:
             # Simulate stepper for GUI/testing
             print(f"[SIM] Stepper step: steps={steps}, direction={'up' if direction else 'down'}")
+
+    def step(self, steps, direction):
+        """Main step method - calls step_motor to avoid naming conflict"""
+        self.step_motor(steps, direction)
 
     def disable(self):
         if self.hw_available and self.enable is not None:
@@ -346,9 +350,9 @@ class Controller:
         while self.running:
             force = self.get_force_reading()
             if force is not None and self.stepper_enabled:
-                if force < self.force_threshold:
+                if force < self.shared.force_threshold:
                     self.increase_force()
-                elif force > self.force_threshold:
+                elif force > self.shared.force_threshold:
                     self.decrease_force()
             time.sleep(1)
 
@@ -388,6 +392,15 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("RPi Control")
+        
+        # Set fullscreen mode
+        self.root.attributes('-fullscreen', True)
+        self.root.state('zoomed')  # For Windows compatibility
+        
+        # Bind escape key to toggle fullscreen (optional emergency exit)
+        self.root.bind('<Escape>', self.toggle_fullscreen)
+        self.root.bind('<F11>', self.toggle_fullscreen)
+        
         self.controller = Controller()
         
         self.servo_control_enabled = tk.BooleanVar(value=True)
@@ -467,9 +480,13 @@ class App:
             preset_dropdown.bind('<<ComboboxSelected>>', lambda event, idx=i: self.servo_preset_selected(event, idx))
             
             # Update angle display when slider changes
-            def update_angle_display(val, idx=i, display=angle_display):
-                display.config(text=f"{int(float(val))}°")
-            scale.config(command=lambda val, idx=i: [self.set_servo_angle(idx, val), update_angle_display(val, idx)])
+            def create_angle_updater(val, idx=i, display=angle_display):
+                def update_angle_display(val):
+                    display.config(text=f"{int(float(val))}°")
+                return update_angle_display
+            
+            angle_updater = create_angle_updater(None, i, angle_display)
+            scale.config(command=lambda val, idx=i, updater=angle_updater: [self.set_servo_angle(idx, val), updater(val)])
 
         # Combined Stepper Control frame (merged manual and mode controls)
         stepper_control_frame = tk.LabelFrame(main_frame, text="Stepper Control")
@@ -763,6 +780,15 @@ class App:
         # Set reference for logging AFTER GUI is fully initialized
         self.controller.set_app(self)  # Set reference for logging
 
+    def toggle_fullscreen(self, event=None):
+        """Toggle fullscreen mode with Escape or F11 key"""
+        current_state = self.root.attributes('-fullscreen')
+        self.root.attributes('-fullscreen', not current_state)
+        if not current_state:
+            self.root.state('zoomed')
+        else:
+            self.root.state('normal')
+
     def update_force_and_thresh(self):
         """Periodically update force and threshold display"""
         # Add force simulation for testing mode
@@ -793,10 +819,16 @@ class App:
         preset_state = "readonly" if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
         self.stepper_preset_dropdown.config(state=preset_state)
         
-        # Also update preset buttons state
-        for widget in self.stepper_preset_dropdown.master.winfo_children():
-            if isinstance(widget, tk.Button) and ("Increase" in widget.cget("text") or "Decrease" in widget.cget("text")):
-                widget.config(state=manual_state)
+        # Also update preset buttons state - safer iteration
+        try:
+            for widget in self.stepper_preset_dropdown.master.winfo_children():
+                if isinstance(widget, tk.Button):
+                    button_text = widget.cget("text")
+                    if "Increase" in button_text or "Decrease" in button_text:
+                        widget.config(state=manual_state)
+        except tk.TclError:
+            # Handle case where widgets might not be fully initialized
+            pass
 
     def update_individual_servos(self):
         enabled = [self.servo1_enabled.get(), self.servo2_enabled.get(), self.servo3_enabled.get()]
@@ -916,10 +948,16 @@ class App:
         preset_state = "readonly" if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
         self.stepper_preset_dropdown.config(state=preset_state)
         
-        # Also update preset buttons state
-        for widget in self.stepper_preset_dropdown.master.winfo_children():
-            if isinstance(widget, tk.Button) and ("Increase" in widget.cget("text") or "Decrease" in widget.cget("text")):
-                widget.config(state=manual_state)
+        # Also update preset buttons state - safer iteration
+        try:
+            for widget in self.stepper_preset_dropdown.master.winfo_children():
+                if isinstance(widget, tk.Button):
+                    button_text = widget.cget("text")
+                    if "Increase" in button_text or "Decrease" in button_text:
+                        widget.config(state=manual_state)
+        except tk.TclError:
+            # Handle case where widgets might not be fully initialized
+            pass
 
     def set_servo_angle(self, servo_idx, angle_str):
         if self.servo_control_enabled.get():
@@ -1293,11 +1331,13 @@ def run_system_tests(controller):
         results.append(f"ServoController.set_angle: FAIL ({e})")
     
     try:
-        # Controller manual force control
+        # Controller manual force control - use string formatting for lambda
+        original_step = controller.stepper.step
         controller.stepper.step = lambda steps, direction: results.append(f"Stepper step called: steps={steps}, direction={direction}")
         controller.stepper_enabled = True
         controller.increase_force()
         controller.decrease_force()
+        controller.stepper.step = original_step  # Restore original
         results.append("Controller.increase_force/decrease_force: PASS")
     except Exception as e:
         results.append(f"Controller.increase_force/decrease_force: FAIL ({e})")
@@ -1340,14 +1380,21 @@ def run_system_tests(controller):
         controller.shared.force_threshold = 500
         controller.shared.force_tolerance = 10
 
+        # Store original step method
+        original_step_method = controller.stepper.step
+        test_calls = []
+        
+        controller.stepper.step = lambda steps, direction: test_calls.append(f"steps={steps}, direction={direction}")
+        
         # Simulate below threshold
         controller.shared.current_force = 480
         controller.stepper_enabled = True
         controller.servo_enabled = True
-        controller.stepper.step = lambda steps, direction: results.append(f"Stepper step called: {steps}, {direction}")
+        
         threshold = controller.shared.force_threshold
         tol = controller.shared.force_tolerance
         force = controller.shared.current_force
+        
         if force < threshold - tol:
             controller.stepper.step(10, True)
             results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
@@ -1357,30 +1404,27 @@ def run_system_tests(controller):
         else:
             results.append("Force feedback: Within threshold, stepper should hold")
 
-        # Simulate above threshold
+        # Test other scenarios...
         controller.shared.current_force = 520
         force = controller.shared.current_force
         if force < threshold - tol:
             controller.stepper.step(10, True)
-            results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
         elif force > threshold + tol:
             controller.stepper.step(10, False)
             results.append("Force feedback: Above threshold, stepper should move down (clockwise)")
-        else:
-            results.append("Force feedback: Within threshold, stepper should hold")
 
-        # Simulate within threshold
         controller.shared.current_force = 505
         force = controller.shared.current_force
         if force < threshold - tol:
             controller.stepper.step(10, True)
-            results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
         elif force > threshold + tol:
             controller.stepper.step(10, False)
-            results.append("Force feedback: Above threshold, stepper should move down (clockwise)")
         else:
             results.append("Force feedback: Within threshold, stepper should hold")
 
+        # Restore original method
+        controller.stepper.step = original_step_method
+        results.extend(test_calls)
         results.append("Force feedback and automatic control: PASS")
     except Exception as e:
         results.append(f"Force feedback and automatic control: FAIL ({e})")
@@ -1395,6 +1439,11 @@ def main():
 
     try:
         root = tk.Tk()
+        
+        # Configure root window for fullscreen
+        root.geometry("1920x1080")  # Set default size before fullscreen
+        root.configure(bg='lightgray')
+        
         global app
         app = App(root)
 
