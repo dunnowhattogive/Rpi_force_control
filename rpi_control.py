@@ -432,44 +432,6 @@ class App:
                                               width=15, relief="raised")
         self.force_status_indicator.pack(side=tk.LEFT, padx=5)
 
-        # Manual stepper control buttons
-        stepper_manual_frame = tk.LabelFrame(main_frame, text="Manual Stepper Control")
-        stepper_manual_frame.pack(pady=10, padx=10, fill="x")
-        
-        manual_buttons_frame = tk.Frame(stepper_manual_frame)
-        manual_buttons_frame.pack(pady=5)
-        
-        self.manual_increase_force_button = tk.Button(
-            manual_buttons_frame, text="Increase Force (+)", 
-            command=self.controller.increase_force
-        )
-        self.manual_increase_force_button.pack(side=tk.LEFT, padx=5)
-
-        self.manual_decrease_force_button = tk.Button(
-            manual_buttons_frame, text="Decrease Force (-)", 
-            command=self.controller.decrease_force
-        )
-        self.manual_decrease_force_button.pack(side=tk.LEFT, padx=5)
-
-        self.stop_button = tk.Button(manual_buttons_frame, text="Stop Program", command=self.stop_program)
-        self.stop_button.pack(side=tk.LEFT, padx=10)
-
-        # Status/Log display
-        status_log_frame = tk.LabelFrame(main_frame, text="Status Log")
-        status_log_frame.pack(pady=10, padx=10, fill="both", expand=True)
-        
-        self.status_log = tk.Text(status_log_frame, height=8, width=60, state=tk.DISABLED, 
-                                 font=("Consolas", 9), wrap=tk.WORD)
-        scrollbar = tk.Scrollbar(status_log_frame, orient=tk.VERTICAL, command=self.status_log.yview)
-        self.status_log.config(yscrollcommand=scrollbar.set)
-        
-        self.status_log.pack(side=tk.LEFT, fill="both", expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill="y")
-        
-        # Clear log button
-        clear_log_btn = tk.Button(status_log_frame, text="Clear Log", command=self.clear_status_log)
-        clear_log_btn.pack(pady=2)
-
         # Servo controls frame
         servo_control_frame = tk.LabelFrame(main_frame, text="Servo Controls")
         servo_control_frame.pack(pady=10, padx=10, fill="x")
@@ -509,74 +471,89 @@ class App:
                 display.config(text=f"{int(float(val))}°")
             scale.config(command=lambda val, idx=i: [self.set_servo_angle(idx, val), update_angle_display(val, idx)])
 
-        # Stepper control mode with preset dropdown
-        self.stepper_mode_frame = tk.LabelFrame(main_frame, text="Stepper Control Mode")
-        self.stepper_mode_frame.pack(pady=10, padx=10, fill="x")
+        # Combined Stepper Control frame (merged manual and mode controls)
+        stepper_control_frame = tk.LabelFrame(main_frame, text="Stepper Control")
+        stepper_control_frame.pack(pady=10, padx=10, fill="x")
+        
+        # Mode selection
+        mode_frame = tk.Frame(stepper_control_frame)
+        mode_frame.pack(pady=5, fill="x")
         
         self.stepper_mode_toggle = tk.Checkbutton(
-            self.stepper_mode_frame, 
-            text="Automatic Stepper Control", 
+            mode_frame, 
+            text="Automatic Mode", 
             variable=self.auto_stepper_mode,
             command=self.toggle_stepper_mode,
             font=("Arial", 11)
         )
-        self.stepper_mode_toggle.pack(pady=5)
+        self.stepper_mode_toggle.pack(side=tk.LEFT, padx=5)
         
         self.stepper_mode_status = tk.Label(
-            self.stepper_mode_frame, 
+            mode_frame, 
             text="Mode: Manual", 
             font=("Arial", 10), 
             fg="blue"
         )
-        self.stepper_mode_status.pack(pady=2)
+        self.stepper_mode_status.pack(side=tk.LEFT, padx=20)
 
-        # Stepper preset dropdown
-        stepper_preset_frame = tk.Frame(self.stepper_mode_frame)
-        stepper_preset_frame.pack(pady=5)
+        # Manual control buttons
+        manual_buttons_frame = tk.Frame(stepper_control_frame)
+        manual_buttons_frame.pack(pady=5, fill="x")
         
-        tk.Label(stepper_preset_frame, text="Quick Steps:").pack(side=tk.LEFT, padx=5)
+        tk.Label(manual_buttons_frame, text="Manual Control:", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
+        
+        self.manual_increase_force_button = tk.Button(
+            manual_buttons_frame, text="Increase Force (+)", 
+            command=self.controller.increase_force
+        )
+        self.manual_increase_force_button.pack(side=tk.LEFT, padx=5)
+
+        self.manual_decrease_force_button = tk.Button(
+            manual_buttons_frame, text="Decrease Force (-)", 
+            command=self.controller.decrease_force
+        )
+        self.manual_decrease_force_button.pack(side=tk.LEFT, padx=5)
+
+        # Quick step preset controls
+        preset_frame = tk.Frame(stepper_control_frame)
+        preset_frame.pack(pady=5, fill="x")
+        
+        tk.Label(preset_frame, text="Quick Steps:", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
         
         self.stepper_preset_var = tk.StringVar(value="Select Steps")
-        self.stepper_preset_dropdown = ttk.Combobox(stepper_preset_frame, textvariable=self.stepper_preset_var, 
+        self.stepper_preset_dropdown = ttk.Combobox(preset_frame, textvariable=self.stepper_preset_var, 
                                                    width=12, state="readonly")
         self.stepper_preset_dropdown['values'] = [f"{steps} step{'s' if steps != 1 else ''}" for steps in self.stepper_presets]
         self.stepper_preset_dropdown.pack(side=tk.LEFT, padx=5)
         
-        tk.Button(stepper_preset_frame, text="Increase (+)", 
+        tk.Button(preset_frame, text="Increase (+)", 
                  command=self.stepper_preset_increase_dropdown).pack(side=tk.LEFT, padx=2)
-        tk.Button(stepper_preset_frame, text="Decrease (-)", 
+        tk.Button(preset_frame, text="Decrease (-)", 
                  command=self.stepper_preset_decrease_dropdown).pack(side=tk.LEFT, padx=2)
 
-        # Remove old servo preset selection frame
-        # servo_preset_frame = tk.LabelFrame(main_frame, text="Servo Preset Positions")
-        # servo_preset_frame.pack(pady=5, padx=10, fill="x")
+        # Stop button
+        stop_frame = tk.Frame(stepper_control_frame)
+        stop_frame.pack(pady=5)
         
-        # Configurable presets (default values)
-        self.servo_presets = [0, 30, 45, 60, 90, 120, 135, 150, 180]
-        
-        # for i in range(3):
-        #     preset_row = tk.Frame(servo_preset_frame)
-        #     preset_row.pack(fill="x", padx=5, pady=2)
-            
-        #     tk.Label(preset_row, text=f"Servo {i+1}:", width=8).pack(side=tk.LEFT)
-            
-        #     preset_buttons_row = []
-        #     for preset in self.servo_presets:
-        #         btn = tk.Button(preset_row, text=f"{preset}°", width=4,
-        #                       command=lambda idx=i, angle=preset: self.set_servo_preset(idx, angle))
-        #         btn.pack(side=tk.LEFT, padx=1)
-        #         preset_buttons_row.append(btn)
-        #     self.servo_preset_buttons.append(preset_buttons_row)
+        self.stop_button = tk.Button(stop_frame, text="Stop Program", command=self.stop_program, 
+                                   bg="red", fg="white", font=("Arial", 10, "bold"))
+        self.stop_button.pack()
 
-        # All servos preset control
-        # all_servos_frame = tk.Frame(servo_preset_frame)
-        # all_servos_frame.pack(fill="x", padx=5, pady=2)
+        # Status/Log display
+        status_log_frame = tk.LabelFrame(main_frame, text="Status Log")
+        status_log_frame.pack(pady=10, padx=10, fill="both", expand=True)
         
-        # tk.Label(all_servos_frame, text="All Servos:", width=8).pack(side=tk.LEFT)
-        # for preset in self.servo_presets:
-        #     btn = tk.Button(all_servos_frame, text=f"All {preset}°", width=6,
-        #                   command=lambda angle=preset: self.set_all_servos_preset(angle))
-        #     btn.pack(side=tk.LEFT, padx=1)
+        self.status_log = tk.Text(status_log_frame, height=8, width=60, state=tk.DISABLED, 
+                                 font=("Consolas", 9), wrap=tk.WORD)
+        scrollbar = tk.Scrollbar(status_log_frame, orient=tk.VERTICAL, command=self.status_log.yview)
+        self.status_log.config(yscrollcommand=scrollbar.set)
+        
+        self.status_log.pack(side=tk.LEFT, fill="both", expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill="y")
+        
+        # Clear log button
+        clear_log_btn = tk.Button(status_log_frame, text="Clear Log", command=self.clear_status_log)
+        clear_log_btn.pack(pady=2)
 
         # --- Settings tab ---
         settings_frame = tk.Frame(notebook)
@@ -807,10 +784,14 @@ class App:
 
     def update_stepper_controls(self):
         self.controller.stepper_enabled = self.stepper_control_enabled.get()
-        state = tk.NORMAL if self.stepper_control_enabled.get() else tk.DISABLED
-        # Update manual force buttons
-        self.manual_increase_force_button.config(state=state)
-        self.manual_decrease_force_button.config(state=state)
+        # Only enable manual controls if stepper is enabled AND not in auto mode
+        manual_state = tk.NORMAL if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
+        self.manual_increase_force_button.config(state=manual_state)
+        self.manual_decrease_force_button.config(state=manual_state)
+        
+        # Preset dropdown should be disabled if stepper disabled OR in auto mode
+        preset_state = "readonly" if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
+        self.stepper_preset_dropdown.config(state=preset_state)
 
     def update_individual_servos(self):
         enabled = [self.servo1_enabled.get(), self.servo2_enabled.get(), self.servo3_enabled.get()]
@@ -895,17 +876,40 @@ class App:
             # Switch to automatic mode
             self.controller.auto_mode_enabled = True
             self.stepper_mode_status.config(text="Mode: Automatic", fg="green")
+            # Disable manual controls when in automatic mode
             self.manual_increase_force_button.config(state=tk.DISABLED)
             self.manual_decrease_force_button.config(state=tk.DISABLED)
+            self.stepper_preset_dropdown.config(state=tk.DISABLED)
+            # Find and disable preset buttons
+            for widget in self.stepper_preset_dropdown.master.winfo_children():
+                if isinstance(widget, tk.Button) and ("Increase" in widget.cget("text") or "Decrease" in widget.cget("text")):
+                    widget.config(state=tk.DISABLED)
             self.log_status("Switched to automatic stepper control")
         else:
             # Switch to manual mode
             self.controller.auto_mode_enabled = False
             self.stepper_mode_status.config(text="Mode: Manual", fg="blue")
+            # Enable manual controls when stepper is enabled
             if self.stepper_control_enabled.get():
                 self.manual_increase_force_button.config(state=tk.NORMAL)
                 self.manual_decrease_force_button.config(state=tk.NORMAL)
+                self.stepper_preset_dropdown.config(state="readonly")
+                # Find and enable preset buttons
+                for widget in self.stepper_preset_dropdown.master.winfo_children():
+                    if isinstance(widget, tk.Button) and ("Increase" in widget.cget("text") or "Decrease" in widget.cget("text")):
+                        widget.config(state=tk.NORMAL)
             self.log_status("Switched to manual stepper control")
+
+    def update_stepper_controls(self):
+        self.controller.stepper_enabled = self.stepper_control_enabled.get()
+        # Only enable manual controls if stepper is enabled AND not in auto mode
+        manual_state = tk.NORMAL if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
+        self.manual_increase_force_button.config(state=manual_state)
+        self.manual_decrease_force_button.config(state=manual_state)
+        
+        # Preset dropdown should be disabled if stepper disabled OR in auto mode
+        preset_state = "readonly" if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
+        self.stepper_preset_dropdown.config(state=preset_state)
 
     def set_servo_angle(self, servo_idx, angle_str):
         if self.servo_control_enabled.get():
