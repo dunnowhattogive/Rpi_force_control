@@ -792,6 +792,11 @@ class App:
         # Preset dropdown should be disabled if stepper disabled OR in auto mode
         preset_state = "readonly" if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
         self.stepper_preset_dropdown.config(state=preset_state)
+        
+        # Also update preset buttons state
+        for widget in self.stepper_preset_dropdown.master.winfo_children():
+            if isinstance(widget, tk.Button) and ("Increase" in widget.cget("text") or "Decrease" in widget.cget("text")):
+                widget.config(state=manual_state)
 
     def update_individual_servos(self):
         enabled = [self.servo1_enabled.get(), self.servo2_enabled.get(), self.servo3_enabled.get()]
@@ -910,6 +915,11 @@ class App:
         # Preset dropdown should be disabled if stepper disabled OR in auto mode
         preset_state = "readonly" if (self.stepper_control_enabled.get() and not self.auto_stepper_mode.get()) else tk.DISABLED
         self.stepper_preset_dropdown.config(state=preset_state)
+        
+        # Also update preset buttons state
+        for widget in self.stepper_preset_dropdown.master.winfo_children():
+            if isinstance(widget, tk.Button) and ("Increase" in widget.cget("text") or "Decrease" in widget.cget("text")):
+                widget.config(state=manual_state)
 
     def set_servo_angle(self, servo_idx, angle_str):
         if self.servo_control_enabled.get():
@@ -1334,7 +1344,7 @@ def run_system_tests(controller):
         controller.shared.current_force = 480
         controller.stepper_enabled = True
         controller.servo_enabled = True
-        controller.stepper.step = lambda steps, direction: results.append(f"Stepper step called: steps={steps}, direction={direction}")
+        controller.stepper.step = lambda steps, direction: results.append(f"Stepper step called: {steps}, {direction}")
         threshold = controller.shared.force_threshold
         tol = controller.shared.force_tolerance
         force = controller.shared.current_force
