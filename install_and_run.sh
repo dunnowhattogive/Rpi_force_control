@@ -73,9 +73,37 @@ sudo apt install -y \
     wget
 
 # GUI and display packages
+print_status "Installing GUI and display packages..."
+
+# tkinter package name varies by distribution and version
+TKINTER_PACKAGE=""
+if apt-cache search python3-tkinter | grep -q python3-tkinter; then
+    TKINTER_PACKAGE="python3-tkinter"
+elif apt-cache search python3-tk | grep -q python3-tk; then
+    TKINTER_PACKAGE="python3-tk"
+elif dpkg -l | grep -q "python3.*tk"; then
+    print_success "tkinter already installed"
+    TKINTER_PACKAGE=""
+else
+    print_warning "Could not find tkinter package, trying python3-tk"
+    TKINTER_PACKAGE="python3-tk"
+fi
+
+# Install GUI packages with proper tkinter handling
+if [ -n "$TKINTER_PACKAGE" ]; then
+    print_status "Installing tkinter package: $TKINTER_PACKAGE"
+    sudo apt install -y $TKINTER_PACKAGE || {
+        print_warning "Failed to install $TKINTER_PACKAGE, trying alternative..."
+        if [ "$TKINTER_PACKAGE" = "python3-tkinter" ]; then
+            sudo apt install -y python3-tk || print_error "Could not install tkinter"
+        else
+            sudo apt install -y python3-tkinter || print_error "Could not install tkinter"
+        fi
+    }
+fi
+
+# Install remaining GUI packages
 sudo apt install -y \
-    python3-tk \
-    python3-tkinter \
     xorg \
     xinit \
     x11-xserver-utils
@@ -91,15 +119,41 @@ sudo apt install -y \
 
 # Scientific computing packages (Pi-optimized)
 print_status "Installing scientific computing packages..."
+
+# Handle numpy/matplotlib package variations
+NUMPY_PACKAGE=""
+MATPLOTLIB_PACKAGE=""
+
+# Check for pre-compiled packages first (faster on Pi)
+if apt-cache search python3-numpy | grep -q python3-numpy; then
+    NUMPY_PACKAGE="python3-numpy"
+fi
+
+if apt-cache search python3-matplotlib | grep -q python3-matplotlib; then
+    MATPLOTLIB_PACKAGE="python3-matplotlib"
+fi
+
+# Install system packages if available
+if [ -n "$NUMPY_PACKAGE" ]; then
+    sudo apt install -y $NUMPY_PACKAGE
+    print_success "Installed system numpy package"
+fi
+
+if [ -n "$MATPLOTLIB_PACKAGE" ]; then
+    sudo apt install -y $MATPLOTLIB_PACKAGE
+    print_success "Installed system matplotlib package"
+fi
+
+# Install supporting libraries for numpy/matplotlib
 sudo apt install -y \
-    python3-numpy \
-    python3-matplotlib \
     python3-scipy \
     libatlas-base-dev \
     libopenblas-dev \
     libhdf5-dev \
     libhdf5-serial-dev \
-    pkg-config
+    pkg-config \
+    libfreetype6-dev \
+    libpng-dev
 
 # Audio system for alerts
 sudo apt install -y \
@@ -148,17 +202,57 @@ python -m pip install --upgrade pip setuptools wheel
 # Install Python packages from requirements
 print_status "Installing Python packages..."
 if [[ -f "requirements.txt" ]]; then
-    pip install -r requirements.txt
+    # Use system packages where possible on Pi to avoid compilation
+    if [[ $IS_PI == true ]]; then
+        print_status "Using Pi-optimized package installation..."
+        
+        # Install packages that are available as system packages
+        pip install --no-deps gpiozero pyserial psutil colorama
+        
+        # For packages that might need compilation, try system first, then pip
+        PACKAGES_TO_INSTALL=""
+        
+        # Check if numpy is already installed via apt
+        if ! python3 -c "import numpy" 2>/dev/null; then
+            if [ -n "$NUMPY_PACKAGE" ]; then
+                print_warning "System numpy not working, will install via pip"
+                PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL numpy"
+            fi
+        fi
+        
+        # Check matplotlib
+        if ! python3 -c "import matplotlib" 2>/dev/null; then
+            if [ -n "$MATPLOTLIB_PACKAGE" ]; then
+                print_warning "System matplotlib not working, will install via pip"
+                PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL matplotlib"
+            fi
+        fi
+        
+        # Check pygame
+        if ! python3 -c "import pygame" 2>/dev/null; then
+            PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL pygame"
+        fi
+        
+        # Install any missing packages via pip
+        if [ -n "$PACKAGES_TO_INSTALL" ]; then
+            print_status "Installing additional packages via pip: $PACKAGES_TO_INSTALL"
+            pip install $PACKAGES_TO_INSTALL
+        fi
+        
+    else
+        # Regular pip install for non-Pi systems
+        pip install -r requirements.txt
+    fi
 else
     print_warning "requirements.txt not found, installing packages manually..."
     pip install \
         pyserial>=3.4 \
         gpiozero>=1.6.2 \
-        numpy>=1.19.5 \
-        matplotlib>=3.3.4 \
-        pygame>=2.0.1 \
         psutil>=5.8.0 \
         colorama>=0.4.4
+        
+    # Try to install numpy and matplotlib
+    pip install numpy matplotlib pygame || print_warning "Some packages failed to install"
 fi
 
 # Configure system settings for optimal performance
@@ -577,6 +671,20 @@ fi
 # Deactivate virtual environment
 deactivate
 
+# Test tkinter availability before completion
+print_status "Final tkinter verification..."
+if python3 -c "import tkinter as tk; root = tk.Tk(); root.withdraw(); root.destroy(); print('GUI test OK')" 2>/dev/null; then
+    print_success "✅ GUI functionality verified"
+    GUI_WORKING=true
+else
+    print_warning "⚠️  GUI test failed - may need manual tkinter installation"
+    print_warning "Try these commands if GUI doesn't work:"
+    print_warning "  sudo apt update"
+    print_warning "  sudo apt install python3-tk python3-tkinter tk-dev"
+    print_warning "  sudo apt install python3-dev libffi-dev"
+    GUI_WORKING=false
+fi
+
 print_success "Installation completed successfully!"
 echo ""
 echo "======================================================"
@@ -586,16 +694,27 @@ echo "Project Directory: $PROJECT_DIR"
 echo "Virtual Environment: $VENV_DIR"
 echo "Desktop Shortcut: $DESKTOP_DIR/RPi_Control.desktop"
 echo ""
+if [[ $GUI_WORKING == true ]]; then
+    echo "🎮 GUI Status: ✅ Working"
+    echo ""
+    echo "🚀 Starting Options:"
+    echo "1. Manual: cd $PROJECT_DIR && ./run.sh"
+    echo "2. Desktop: Double-click the desktop shortcut"
+    echo "3. Service: ./manage_service.sh start"
+else
+    echo "🎮 GUI Status: ⚠️  May have issues"
+    echo ""
+    echo "🚀 Starting Options:"
+    echo "1. GUI (try): cd $PROJECT_DIR && ./run.sh"
+    echo "2. Headless test: cd $PROJECT_DIR && ./run_headless.sh"
+    echo "3. Manual tkinter fix: sudo apt install python3-tk python3-tkinter"
+fi
+echo ""
 echo "🔧 Service Management:"
 echo "• Manage service: cd $PROJECT_DIR && ./manage_service.sh"
 echo "• Service status: ./manage_service.sh status"
 echo "• Enable auto-boot: ./manage_service.sh enable"
 echo "• View logs: ./manage_service.sh logs"
-echo ""
-echo "🚀 Starting Options:"
-echo "1. Manual: cd $PROJECT_DIR && ./run.sh"
-echo "2. Desktop: Double-click the desktop shortcut"
-echo "3. Service: ./manage_service.sh start"
 echo ""
 echo "To validate the system:"
 echo "cd $PROJECT_DIR && ./validate_system.sh"
