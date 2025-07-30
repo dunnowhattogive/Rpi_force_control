@@ -180,32 +180,12 @@ sudo apt install -y libffi-dev libssl-dev
 # Hardware libraries  
 sudo apt install -y python3-gpiozero python3-rpi.gpio python3-lgpio
 
-# GUI and graphics - handle tkinter package name variations
-# Try multiple package names for tkinter (varies by Pi OS version)
-if sudo apt install -y python3-tkinter; then
-    echo "✓ python3-tkinter installed"
-elif sudo apt install -y python3-tk; then
-    echo "✓ python3-tk installed"
-else
-    echo "⚠️ tkinter installation may have failed"
-    # Install development packages that might help
-    sudo apt install -y tk-dev python3-dev libffi-dev
-fi
+# GUI and graphics
+sudo apt install -y python3-tk python3-tkinter
 
-# Test tkinter installation
-if python3 -c "import tkinter; print('tkinter OK')" 2>/dev/null; then
-    echo "✓ tkinter verified working"
-else
-    echo "❌ tkinter test failed - may need manual fix"
-fi
-
-# Continue with other GUI packages
-sudo apt install -y xorg xinit x11-xserver-utils
-
-# Scientific computing (Pi-optimized versions)
+# Scientific computing (Pi-optimized)
 sudo apt install -y python3-numpy python3-matplotlib python3-scipy
 sudo apt install -y libatlas-base-dev libopenblas-dev
-sudo apt install -y libfreetype6-dev libpng-dev
 
 # Serial communication
 sudo apt install -y python3-serial minicom screen
@@ -416,181 +396,201 @@ cd ~/projects/RPi_control
 
 ## 🚨 Troubleshooting Common Issues
 
-### ❌ tkinter Installation Issues
-**Symptoms**: "unable to locate package python3-tkinter" or "No module named 'tkinter'"
-
+### GUI Won't Start
 ```bash
-# Try different package names for tkinter
-# Method 1: Try both common package names
-sudo apt update
-sudo apt install -y python3-tkinter || sudo apt install -y python3-tk
+# Check display environment
+echo $DISPLAY  # Should show :0
 
-# Method 2: Install development packages
-sudo apt install -y tk-dev python3-dev libffi-dev
+# Test basic GUI
+python3 -c "import tkinter; tkinter.Tk().mainloop()"
 
-# Method 3: Full tkinter rebuild (if above fails)
-sudo apt install -y tcl-dev tk-dev python3-dev
-pip3 install --upgrade pip
-pip3 install tkinter-rebuild || echo "tkinter-rebuild not available"
-
-# Method 4: Check if tkinter is built into Python
-python3 -c "
-import sys
-print(f'Python version: {sys.version}')
-try:
-    import tkinter
-    print('✅ tkinter is working')
-    tkinter.Tk().withdraw()
-    print('✅ tkinter GUI test passed')
-except ImportError as e:
-    print(f'❌ tkinter import failed: {e}')
-except Exception as e:
-    print(f'❌ tkinter GUI test failed: {e}')
-"
-
-# Method 5: Alternative GUI test
-python3 -c "
-import tkinter as tk
-root = tk.Tk()
-root.title('Pi Display Test')
-label = tk.Label(root, text='If you see this, GUI is working!')
-label.pack(pady=20)
-button = tk.Button(root, text='Close', command=root.quit)
-button.pack(pady=10)
-# Uncomment next line to show test window
-# root.mainloop()
-root.destroy()
-print('GUI components test: PASS')
-"
+# Check for errors
+journalctl --user -u rpicontrol -n 50
 ```
 
-### ❌ Pi OS Version Specific Issues
-
-#### Raspberry Pi OS Lite (No Desktop)
+### Permission Errors
 ```bash
-# Install desktop environment if running Pi OS Lite
-sudo apt install -y raspberrypi-ui-mods
-sudo apt install -y lightdm
+# Check group membership
+groups $USER
 
-# Install additional desktop packages
-sudo apt install -y lxde-core lxappearance
-sudo systemctl set-default graphical.target
+# Should include: gpio dialout audio
 
-# Reboot to desktop
+# If missing, add groups:
+sudo usermod -a -G gpio,dialout,audio $USER
+# Log out and back in, or reboot
+```
+
+### Service Won't Start
+```bash
+# Check service file
+cat ~/.config/systemd/user/rpicontrol.service
+
+# Verify paths match your installation
+# Edit if needed:
+nano ~/.config/systemd/user/rpicontrol.service
+
+# Reload and restart
+systemctl --user daemon-reload
+systemctl --user restart rpicontrol
+```
+
+### Performance Issues
+```bash
+# Check Pi temperature
+vcgencmd measure_temp
+
+# Monitor resources
+htop
+
+# Optimize Pi performance
+sudo nano /boot/config.txt
+# Add: gpu_mem=128
+
+# Restart after changes
 sudo reboot
 ```
 
-#### Bookworm vs Bullseye Differences
+### Pi 5 Specific Issues
+
+#### ❌ Pi 5 Power Problems
+**Symptoms**: Random reboots, performance issues, or won't boot
 ```bash
-# Check Pi OS version
-cat /etc/os-release
+# Check Pi 5 power status
+vcgencmd get_throttled
+# 0x0 = no issues
+# 0x50000 = under-voltage detected
 
-# For Pi OS Bookworm (2023+):
-sudo apt install -y python3-tk python3-tkinter
+# Monitor voltage
+vcgencmd measure_volts
+# Should be close to 5.0V
 
-# For Pi OS Bullseye (2021-2022):
-sudo apt install -y python3-tkinter
-
-# For older versions:
-sudo apt install -y python-tk python3-tk
+# Check if using correct PSU
+# Pi 5 REQUIRES 5V/5A (25W) power supply
+# Pi 4 PSU (5V/3A) will cause under-voltage on Pi 5
 ```
 
-### ❌ Alternative: Headless Testing
-If GUI continues to have issues, test core functionality without GUI:
-
+#### ❌ Pi 5 Overheating
+**Symptoms**: Thermal throttling, performance drops
 ```bash
-# Run headless test
-cd ~/projects/RPi_control
-./run_headless.sh
+# Check Pi 5 temperature
+vcgencmd measure_temp
+# Idle: <50°C, Load: <70°C, Critical: >80°C
 
-# Manual core test
+# Check for thermal throttling
+vcgencmd get_throttled
+# If non-zero, add cooling
+
+# Install active cooling for Pi 5
+# Official Pi 5 Active Cooler recommended
+```
+
+#### ❌ Pi 5 Config File Location
+**Symptoms**: Configuration changes not taking effect
+```bash
+# Pi 5 uses different config location
+ls -la /boot/firmware/config.txt  # Pi 5
+ls -la /boot/config.txt           # Pi 4 and earlier
+
+# Edit correct config file for Pi 5
+sudo nano /boot/firmware/config.txt
+
+# For Pi 4 and earlier
+sudo nano /boot/config.txt
+```
+
+#### ❌ Pi 5 GPIO Compatibility
+**Symptoms**: GPIO errors or hardware not responding
+```bash
+# Verify Pi 5 GPIO library versions
+pip list | grep -i gpio
+
+# Update to latest gpiozero for Pi 5 support
+pip install --upgrade gpiozero
+
+# Test Pi 5 GPIO
 python3 -c "
-from rpi_control import Controller, StepperMotor, ServoController, SafetyManager
-print('✓ Core imports successful')
-
-controller = Controller()
-print('✓ Controller initialized')
-
-# Test components
-stepper = StepperMotor()
-servo = ServoController()
-safety = SafetyManager()
-print('✅ All core components working without GUI')
+import gpiozero
+print(f'gpiozero version: {gpiozero.__version__}')
+from gpiozero import OutputDevice
+test = OutputDevice(18)
+print('Pi 5 GPIO test: PASS')
+test.close()
 "
 ```
 
-### ❌ Display Issues on Different Pi Models
+## 📱 Step 11: Remote Access (Optional)
 
-#### Pi with Small Display (3.5" screens)
+### SSH Access
 ```bash
-# Optimize for small displays
-echo "hdmi_group=2" | sudo tee -a /boot/config.txt
-echo "hdmi_mode=87" | sudo tee -a /boot/config.txt
-echo "hdmi_cvt=480 320 60 6 0 0 0" | sudo tee -a /boot/config.txt
+# From another computer:
+ssh sigma@192.168.1.xxx
 
-# Reduce GUI font sizes
-echo "gtk-font-name='Sans 8'" > ~/.gtkrc-2.0
+# Run commands remotely:
+cd ~/projects/RPi_control
+./manage_service.sh status
 ```
 
-#### Pi with No Display (Headless)
+### VNC Remote Desktop
 ```bash
-# Enable VNC for remote GUI access
+# Enable VNC (if not already done)
 sudo raspi-config
-# Interface Options → VNC → Enable
+# 3 Interface Options → P3 VNC → Enable
 
-# Or install VNC manually
-sudo apt install -y realvnc-vnc-server
-sudo systemctl enable vncserver-x11-serviced
-sudo systemctl start vncserver-x11-serviced
-
-# Set VNC resolution
-echo "framebuffer_width=1920" | sudo tee -a /boot/config.txt
-echo "framebuffer_height=1080" | sudo tee -a /boot/config.txt
+# Connect using VNC Viewer from another computer
+# Address: 192.168.1.xxx:5900
 ```
 
-## ✅ Success Checklist
+### Web Access (Future Enhancement)
+The project could be extended with a web interface for remote monitoring and control.
 
-After completing this guide, you should have:
+## 🎯 Next Steps
 
-- [ ] Fresh Raspberry Pi OS installed and updated
-- [ ] **tkinter working** (test with `python3 -c "import tkinter; print('OK')"`)
-- [ ] RPi Control System installed and functional
-- [ ] GUI starting successfully (or headless mode working)
-- [ ] All system tests passing
-- [ ] Service management working
-- [ ] Hardware connections ready (if applicable)
-- [ ] Remote access configured (if desired)
+### Hardware Integration
+1. **Purchase Components**: Order stepper motor, servos, load cell, amplifiers
+2. **Wiring**: Follow connection diagrams carefully
+3. **Calibration**: Use calibration tab for load cell setup
+4. **Testing**: Verify all hardware functions correctly
 
-### tkinter Verification Commands
-```bash
-# Quick tkinter test
-python3 -c "import tkinter; print('tkinter imported successfully')"
+### Advanced Configuration
+1. **PID Tuning**: Adjust parameters for your specific hardware
+2. **Safety Limits**: Set appropriate force and position limits  
+3. **Sequences**: Create automated test procedures
+4. **Data Logging**: Configure for your measurement requirements
 
-# Full GUI test
-python3 -c "
-import tkinter as tk
-root = tk.Tk()
-root.title('Test')
-tk.Label(root, text='GUI Working!').pack()
-root.after(1000, root.quit)  # Auto-close after 1 second
-root.mainloop()
-print('GUI test completed successfully')
-"
+### System Optimization
+1. **Performance**: Monitor and optimize for your specific application
+2. **Reliability**: Set up monitoring and automatic restarts
+3. **Backup**: Regular configuration and data backups
+4. **Updates**: Keep system and software updated
 
-# RPi Control specific test
-cd ~/projects/RPi_control
-python3 -c "
-from rpi_control import App
-import tkinter as tk
-print('✅ RPi Control GUI imports working')
-"
-```
+### Pi 5 Specific Recommendations
+1. **Monitor Temperature**: Use `vcgencmd measure_temp` regularly
+2. **Check Power**: Ensure 5V/5A PSU is being used
+3. **Active Cooling**: Install fan or official cooler for continuous operation
+4. **Performance**: Pi 5 can handle higher update rates and more complex operations
+5. **Future Expansion**: Pi 5's PCIe slot enables advanced interfaces
 
-**🎉 Congratulations! Your Raspberry Pi Control System is ready to use!**
+## 📚 Additional Resources
+
+### Documentation
+- **Main README**: Complete project documentation
+- **API Reference**: Programming interface details
+- **Troubleshooting**: Common issues and solutions
+
+### Community
+- **GitHub Issues**: Report bugs and get help
+- **Discussions**: Share ideas and improvements
+- **Wiki**: Community-contributed guides
+
+### Pi-Specific Resources
+- **Raspberry Pi Foundation**: https://www.raspberrypi.org/
+- **Pi Forums**: https://www.raspberrypi.org/forums/
+- **GPIO Pinout**: https://pinout.xyz/
 
 ---
 
-*Having tkinter issues? Try the headless mode first, then work on GUI fixes.*
+## ✅ Success Checklist
+
 After completing this guide, you should have:
 
 - [ ] Fresh Raspberry Pi OS installed and updated

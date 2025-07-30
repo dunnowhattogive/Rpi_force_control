@@ -1,40 +1,11 @@
-# Raspberry Pi Control System Requirements
-# Optimized for Raspberry Pi OS (Debian-based)
-
-# Core GPIO and hardware control
 gpiozero>=1.6.2
-RPi.GPIO>=0.7.0; sys_platform == "linux"
-
-# Serial communication
 pyserial>=3.4
-pyserial-tools>=0.1
-
-# Data processing and analysis
 numpy>=1.19.5
-
-# Plotting and visualization (Pi-optimized versions)
 matplotlib>=3.3.4
-
-# Audio alerts and sound
 pygame>=2.0.1
-
-# System monitoring and logging
 psutil>=5.8.0
-
-# Enhanced error handling and debugging
+pyserial-tools>=0.1
 colorama>=0.4.4
-
-# Note: tkinter is usually built into Python on Raspberry Pi
-# If tkinter issues occur, install via system package manager:
-# sudo apt install python3-tk python3-tkinter
-
-# Alternative packages for specific Pi OS versions:
-# For Pi OS Bookworm: python3-tk
-# For Pi OS Bullseye: python3-tkinter  
-# For development: tk-dev python3-dev libffi-dev
-
-# System-level dependencies (install via apt):
-# python3-numpy python3-matplotlib python3-scipy
-# libatlas-base-dev libopenblas-dev
-# python3-serial python3-pygame
-# xorg xinit x11-xserver-utils
+# Optional: Development and testing dependencies
+# pytest>=6.2.4
+# pytest-cov>=2.12.0
