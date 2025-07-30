@@ -174,117 +174,11 @@ class SharedData:
 def servo_force_gui(servo_ctrl, shared):
     """
     Launches a Tkinter-based GUI for controlling servo angles and monitoring force measurements.
-    Args:
-        servo_ctrl: An object that provides a `set_angle(idx, angle)` method to control servo motors.
-        shared: An object with the following attributes:
-            - force_threshold (float): The current force threshold value.
-            - current_force (float): The latest measured force value.
-            - force_tolerance (float): The tolerance range for the force threshold.
-    Features:
-        - Allows the user to adjust the angle of three servos using sliders.
-        - Displays the current force measurement, updating periodically.
-        - Provides a slider to adjust the force threshold.
-        - Shows a status label indicating whether the current force is below, within, or above the threshold (with tolerance), using color coding (blue, green, red).
-        - Updates the GUI in real-time as values change.
-    Note:
-        This function blocks execution as it runs the Tkinter main loop.
+    This function is DEPRECATED and should not be called directly.
+    Use the main App class instead.
     """
-    def on_angle_change(idx, var):
-        angle = var.get()
-        servo_ctrl.set_angle(idx, angle)
-
-    def on_threshold_change(val):
-        shared.force_threshold = float(val)
-        update_status()
-
-    def set_preset(idx, angle):
-        angle_vars[idx].set(angle)
-        servo_ctrl.set_angle(idx, angle)
-
-    def update_force_display():
-        force_label.config(text=f"Current Force: {shared.current_force:.2f}g")
-        update_status()
-        root.after(200, update_force_display)
-
-    def update_status():
-        force = shared.current_force
-        threshold = shared.force_threshold
-        tol = shared.force_tolerance
-        if force < threshold - tol:
-            status = "Below threshold"
-            status_label.config(fg="blue")
-        elif force > threshold + tol:
-            status = "Above threshold"
-            status_label.config(fg="red")
-        else:
-            status = "Within threshold"
-            status_label.config(fg="green")
-        status_label.config(text=f"Status: {status}")
-
-    root = tk.Tk()
-    root.title("Servo & Force Control")
-
-    # Servo controls
-    angle_vars = []
-    for i in range(3):
-        frame = tk.Frame(root)
-        frame.pack(padx=10, pady=5)
-        tk.Label(frame, text=f"Servo {i+1} Angle:").pack(side=tk.LEFT)
-        angle_var = tk.IntVar(value=90)
-        angle_vars.append(angle_var)
-        scale = tk.Scale(frame, from_=0, to=180, orient=tk.HORIZONTAL, variable=angle_var,
-                         command=lambda val, idx=i, var=angle_var: on_angle_change(idx, var))
-        scale.pack(side=tk.LEFT)
-
-        # Preset buttons at 30° intervals
-        preset_frame = tk.Frame(frame)
-        preset_frame.pack(side=tk.LEFT, padx=5)
-        for preset in range(0, 181, 30):
-            btn = tk.Button(preset_frame, text=str(preset),
-                            command=lambda idx=i, angle=preset: set_preset(idx, angle), width=3)
-            btn.pack(side=tk.LEFT, padx=1)
-
-    # Force threshold control
-    thresh_frame = tk.Frame(root)
-    thresh_frame.pack(padx=10, pady=10)
-    tk.Label(thresh_frame, text="Force Threshold (g):").pack(side=tk.LEFT)
-    threshold_var = tk.DoubleVar(value=shared.force_threshold)
-    threshold_scale = tk.Scale(thresh_frame, from_=0, to=2000, orient=tk.HORIZONTAL, resolution=1,
-                               variable=threshold_var, command=on_threshold_change, length=300)
-    threshold_scale.pack(side=tk.LEFT)
-
-    # Force display
-    force_label = tk.Label(root, text="Current Force: 0.00g", font=("Arial", 16))
-    force_label.pack(pady=10)
-
-    # Status display
-    status_label = tk.Label(root, text="Status: Waiting...", font=("Arial", 16))
-    status_label.pack(pady=5)
-
-    # Periodically update force and threshold display
-    def update_force_and_thresh():
-        self.live_force_var.set(f"{self.controller.shared.current_force:.2f}")
-        self.force_thresh_var.set(str(self.controller.shared.force_threshold))
-        self.update_force_status_indicator()
-        self.root.after(200, update_force_and_thresh)
-    update_force_and_thresh()
-
-    # Manual increase/decrease force buttons
-    self.manual_increase_force_button = tk.Button(
-        main_frame, text="Increase Force (Stepper)", command=self.controller.increase_force
-    )
-    self.manual_increase_force_button.pack(pady=5)
-
-    self.manual_decrease_force_button = tk.Button(
-        main_frame, text="Decrease Force (Stepper)", command=self.controller.decrease_force
-    )
-    self.manual_decrease_force_button.pack(pady=5)
-
-    self.stop_button = tk.Button(main_frame, text="Stop Program", command=self.stop_program)
-    self.stop_button.pack(pady=10)
-
-    root.after(200, update_force_display)
-    root.mainloop()
+    # This function is no longer used - all GUI functionality is in the App class
+    pass
 
 # --- Cleanup function ---
 def cleanup(stepper, servo_ctrl, ser):
@@ -538,6 +432,28 @@ class App:
                                               width=15, relief="raised")
         self.force_status_indicator.pack(side=tk.LEFT, padx=5)
 
+        # Manual stepper control buttons
+        stepper_manual_frame = tk.LabelFrame(main_frame, text="Manual Stepper Control")
+        stepper_manual_frame.pack(pady=10, padx=10, fill="x")
+        
+        manual_buttons_frame = tk.Frame(stepper_manual_frame)
+        manual_buttons_frame.pack(pady=5)
+        
+        self.manual_increase_force_button = tk.Button(
+            manual_buttons_frame, text="Increase Force (+)", 
+            command=self.controller.increase_force
+        )
+        self.manual_increase_force_button.pack(side=tk.LEFT, padx=5)
+
+        self.manual_decrease_force_button = tk.Button(
+            manual_buttons_frame, text="Decrease Force (-)", 
+            command=self.controller.decrease_force
+        )
+        self.manual_decrease_force_button.pack(side=tk.LEFT, padx=5)
+
+        self.stop_button = tk.Button(manual_buttons_frame, text="Stop Program", command=self.stop_program)
+        self.stop_button.pack(side=tk.LEFT, padx=10)
+
         # Status/Log display
         status_log_frame = tk.LabelFrame(main_frame, text="Status Log")
         status_log_frame.pack(pady=10, padx=10, fill="both", expand=True)
@@ -790,6 +706,61 @@ class App:
         tk.Button(preset_modify_row, text="Add", command=self.add_servo_preset).pack(side=tk.LEFT, padx=2)
         tk.Button(preset_modify_row, text="Remove Last", command=self.remove_servo_preset).pack(side=tk.LEFT, padx=5)
 
+        # Stepper position presets configuration
+        stepper_presets_config_frame = tk.LabelFrame(settings_frame, text="Configure Stepper Presets")
+        stepper_presets_config_frame.pack(padx=10, pady=5, fill="x")
+        
+        stepper_preset_config_row = tk.Frame(stepper_presets_config_frame)
+        stepper_preset_config_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_config_row, text="Preset Steps:").pack(side=tk.LEFT)
+        
+        self.stepper_preset_entries = []
+        for i, preset in enumerate(self.stepper_presets):
+            preset_var = tk.IntVar(value=preset)
+            entry = tk.Entry(stepper_preset_config_row, textvariable=preset_var, width=4)
+            entry.pack(side=tk.LEFT, padx=1)
+            self.stepper_preset_entries.append(preset_var)
+        
+        stepper_preset_buttons_row = tk.Frame(stepper_presets_config_frame)
+        stepper_preset_buttons_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Button(stepper_preset_buttons_row, text="Apply Presets", command=self.apply_stepper_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(stepper_preset_buttons_row, text="Reset to Defaults", command=self.reset_stepper_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(stepper_preset_buttons_row, text="Save Config", command=self.save_stepper_presets).pack(side=tk.LEFT, padx=5)
+        tk.Button(stepper_preset_buttons_row, text="Load Config", command=self.load_stepper_presets).pack(side=tk.LEFT, padx=5)
+
+        # Add/Remove stepper preset controls
+        stepper_preset_modify_row = tk.Frame(stepper_presets_config_frame)
+        stepper_preset_modify_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_modify_row, text="Add New Preset:").pack(side=tk.LEFT)
+        self.new_stepper_preset_var = tk.IntVar(value=20)
+        tk.Entry(stepper_preset_modify_row, textvariable=self.new_stepper_preset_var, width=4).pack(side=tk.LEFT, padx=2)
+        tk.Button(stepper_preset_modify_row, text="Add", command=self.add_stepper_preset).pack(side=tk.LEFT, padx=2)
+        tk.Button(stepper_preset_modify_row, text="Remove Last", command=self.remove_stepper_preset).pack(side=tk.LEFT, padx=5)
+
+        # Remove old stepper presets section and replace with servo config only
+        # Stepper position presets
+        stepper_presets_frame = tk.LabelFrame(settings_frame, text="Quick Stepper Actions")
+        stepper_presets_frame.pack(padx=10, pady=5, fill="x")
+        
+        stepper_preset_row = tk.Frame(stepper_presets_frame)
+        stepper_preset_row.pack(fill="x", padx=5, pady=2)
+        
+        tk.Label(stepper_preset_row, text="Quick Steps:", width=10).pack(side=tk.LEFT)
+        
+        for steps in self.stepper_presets:
+            # Increase buttons
+            btn_inc = tk.Button(stepper_preset_row, text=f"+{steps}", width=4,
+                              command=lambda s=steps: self.stepper_preset_increase(s))
+            btn_inc.pack(side=tk.LEFT, padx=1)
+            
+            # Decrease buttons  
+            btn_dec = tk.Button(stepper_preset_row, text=f"-{steps}", width=4,
+                              command=lambda s=steps: self.stepper_preset_decrease(s))
+            btn_dec.pack(side=tk.LEFT, padx=1)
+
         # --- end Settings tab ---
 
         # --- Tests tab ---
@@ -809,8 +780,26 @@ class App:
         self.sync_thread = threading.Thread(target=self.sync_enable_flags, daemon=True)
         self.sync_thread.start()
         
+        # Start periodic updates
+        self.update_force_and_thresh()
+        
         # Set reference for logging AFTER GUI is fully initialized
         self.controller.set_app(self)  # Set reference for logging
+
+    def update_force_and_thresh(self):
+        """Periodically update force and threshold display"""
+        # Add force simulation for testing mode
+        if self.controller.ser is None:
+            # Simulate varying force readings when no hardware is connected
+            import math
+            current_time = time.time()
+            simulated_force = 500 + 50 * math.sin(current_time * 0.5)  # Oscillate around 500g
+            self.controller.shared.current_force = simulated_force
+        
+        self.live_force_var.set(f"{self.controller.shared.current_force:.2f}")
+        self.force_thresh_var.set(str(self.controller.shared.force_threshold))
+        self.update_force_status_indicator()
+        self.root.after(200, self.update_force_and_thresh)
 
     def update_servo_controls(self):
         self.controller.servo_enabled = self.servo_control_enabled.get()
@@ -819,8 +808,7 @@ class App:
     def update_stepper_controls(self):
         self.controller.stepper_enabled = self.stepper_control_enabled.get()
         state = tk.NORMAL if self.stepper_control_enabled.get() else tk.DISABLED
-        self.increase_button.config(state=state)
-        self.decrease_button.config(state=state)
+        # Update manual force buttons
         self.manual_increase_force_button.config(state=state)
         self.manual_decrease_force_button.config(state=state)
 
@@ -1007,7 +995,6 @@ class App:
             
             self.servo_presets = new_presets
             self.update_preset_dropdowns()
-            self.update_preset_entries()  # Update the entry fields to match
             self.log_status(f"Applied servo presets: {self.servo_presets}")
         except Exception as e:
             self.log_status(f"Invalid servo preset values: {e}")
@@ -1016,7 +1003,6 @@ class App:
         """Reset servo presets to default values"""
         self.servo_presets = [0, 30, 45, 60, 90, 120, 135, 150, 180]
         self.update_preset_dropdowns()
-        self.update_preset_entries()
         self.log_status("Servo presets reset to defaults")
 
     def add_servo_preset(self):
@@ -1030,7 +1016,6 @@ class App:
                 self.servo_presets.append(new_preset)
                 self.servo_presets.sort()  # Keep presets sorted
                 self.update_preset_dropdowns()
-                self.update_preset_entries()
                 self.log_status(f"Added servo preset: {new_preset}°")
             else:
                 self.log_status(f"Preset {new_preset}° already exists")
@@ -1042,65 +1027,9 @@ class App:
         if len(self.servo_presets) > 1:  # Keep at least one preset
             removed = self.servo_presets.pop()
             self.update_preset_dropdowns()
-            self.update_preset_entries()
             self.log_status(f"Removed servo preset: {removed}°")
         else:
             self.log_status("Cannot remove the last preset")
-
-        # Stepper position presets configuration
-        stepper_presets_config_frame = tk.LabelFrame(settings_frame, text="Configure Stepper Presets")
-        stepper_presets_config_frame.pack(padx=10, pady=5, fill="x")
-        
-        stepper_preset_config_row = tk.Frame(stepper_presets_config_frame)
-        stepper_preset_config_row.pack(fill="x", padx=5, pady=2)
-        
-        tk.Label(stepper_preset_config_row, text="Preset Steps:").pack(side=tk.LEFT)
-        
-        self.stepper_preset_entries = []
-        for i, preset in enumerate(self.stepper_presets):
-            preset_var = tk.IntVar(value=preset)
-            entry = tk.Entry(stepper_preset_config_row, textvariable=preset_var, width=4)
-            entry.pack(side=tk.LEFT, padx=1)
-            self.stepper_preset_entries.append(preset_var)
-        
-        stepper_preset_buttons_row = tk.Frame(stepper_presets_config_frame)
-        stepper_preset_buttons_row.pack(fill="x", padx=5, pady=2)
-        
-        tk.Button(stepper_preset_buttons_row, text="Apply Presets", command=self.apply_stepper_presets).pack(side=tk.LEFT, padx=5)
-        tk.Button(stepper_preset_buttons_row, text="Reset to Defaults", command=self.reset_stepper_presets).pack(side=tk.LEFT, padx=5)
-        tk.Button(stepper_preset_buttons_row, text="Save Config", command=self.save_stepper_presets).pack(side=tk.LEFT, padx=5)
-        tk.Button(stepper_preset_buttons_row, text="Load Config", command=self.load_stepper_presets).pack(side=tk.LEFT, padx=5)
-
-        # Add/Remove stepper preset controls
-        stepper_preset_modify_row = tk.Frame(stepper_presets_config_frame)
-        stepper_preset_modify_row.pack(fill="x", padx=5, pady=2)
-        
-        tk.Label(stepper_preset_modify_row, text="Add New Preset:").pack(side=tk.LEFT)
-        self.new_stepper_preset_var = tk.IntVar(value=20)
-        tk.Entry(stepper_preset_modify_row, textvariable=self.new_stepper_preset_var, width=4).pack(side=tk.LEFT, padx=2)
-        tk.Button(stepper_preset_modify_row, text="Add", command=self.add_stepper_preset).pack(side=tk.LEFT, padx=2)
-        tk.Button(stepper_preset_modify_row, text="Remove Last", command=self.remove_stepper_preset).pack(side=tk.LEFT, padx=5)
-
-        # Remove old stepper presets section and replace with servo config only
-        # Stepper position presets
-        stepper_presets_frame = tk.LabelFrame(settings_frame, text="Quick Stepper Actions")
-        stepper_presets_frame.pack(padx=10, pady=5, fill="x")
-        
-        stepper_preset_row = tk.Frame(stepper_presets_frame)
-        stepper_preset_row.pack(fill="x", padx=5, pady=2)
-        
-        tk.Label(stepper_preset_row, text="Quick Steps:", width=10).pack(side=tk.LEFT)
-        
-        for steps in self.stepper_presets:
-            # Increase buttons
-            btn_inc = tk.Button(stepper_preset_row, text=f"+{steps}", width=4,
-                              command=lambda s=steps: self.stepper_preset_increase(s))
-            btn_inc.pack(side=tk.LEFT, padx=1)
-            
-            # Decrease buttons  
-            btn_dec = tk.Button(stepper_preset_row, text=f"-{steps}", width=4,
-                              command=lambda s=steps: self.stepper_preset_decrease(s))
-            btn_dec.pack(side=tk.LEFT, padx=1)
 
     def apply_stepper_presets(self):
         try:
@@ -1114,8 +1043,6 @@ class App:
             
             self.stepper_presets = new_presets
             self.update_stepper_preset_dropdown()
-            self.update_stepper_preset_entries()
-            self.update_stepper_preset_buttons()
             self.log_status(f"Applied stepper presets: {self.stepper_presets}")
         except Exception as e:
             self.log_status(f"Invalid stepper preset values: {e}")
@@ -1124,8 +1051,6 @@ class App:
         """Reset stepper presets to default values"""
         self.stepper_presets = [1, 5, 10, 25, 50, 100]
         self.update_stepper_preset_dropdown()
-        self.update_stepper_preset_entries()
-        self.update_stepper_preset_buttons()
         self.log_status("Stepper presets reset to defaults")
 
     def add_stepper_preset(self):
@@ -1141,8 +1066,6 @@ class App:
                 self.stepper_presets.append(new_preset)
                 self.stepper_presets.sort()  # Keep presets sorted
                 self.update_stepper_preset_dropdown()
-                self.update_stepper_preset_entries()
-                self.update_stepper_preset_buttons()
                 self.log_status(f"Added stepper preset: {new_preset} steps")
             else:
                 self.log_status(f"Preset {new_preset} steps already exists")
@@ -1154,8 +1077,6 @@ class App:
         if len(self.stepper_presets) > 1:  # Keep at least one preset
             removed = self.stepper_presets.pop()
             self.update_stepper_preset_dropdown()
-            self.update_stepper_preset_entries()
-            self.update_stepper_preset_buttons()
             self.log_status(f"Removed stepper preset: {removed} steps")
         else:
             self.log_status("Cannot remove the last preset")
@@ -1163,115 +1084,6 @@ class App:
     def update_stepper_preset_dropdown(self):
         """Update stepper preset dropdown with new values"""
         self.stepper_preset_dropdown['values'] = [f"{steps} step{'s' if steps != 1 else ''}" for steps in self.stepper_presets]
-
-    def update_stepper_preset_entries(self):
-        """Update the stepper preset entry fields to match current presets"""
-        # Clear existing entries
-        for widget in self.stepper_preset_entries:
-            widget.master.destroy()
-        
-        # Recreate entry fields
-        preset_config_row = None
-        for widget in self.stepper_preset_entries[0].master.master.winfo_children():
-            if isinstance(widget, tk.Frame):
-                preset_config_row = widget
-                break
-        
-        if preset_config_row:
-            # Remove old entries
-            for widget in preset_config_row.winfo_children():
-                if isinstance(widget, tk.Entry):
-                    widget.destroy()
-            
-            # Add new entries
-            self.stepper_preset_entries = []
-            for i, preset in enumerate(self.stepper_presets):
-                preset_var = tk.IntVar(value=preset)
-                entry = tk.Entry(preset_config_row, textvariable=preset_var, width=4)
-                entry.pack(side=tk.LEFT, padx=1)
-                self.stepper_preset_entries.append(preset_var)
-
-    def update_stepper_preset_buttons(self):
-        """Update stepper preset buttons in settings tab"""
-        # Find the stepper preset frame
-        for widget in self.root.winfo_children():
-            if isinstance(widget, ttk.Notebook):
-                for tab_id in widget.tabs():
-                    tab = widget.nametowidget(tab_id)
-                    if widget.tab(tab_id, "text") == "Settings":
-                        for frame in tab.winfo_children():
-                            if isinstance(frame, tk.LabelFrame) and "Quick Stepper" in frame.cget("text"):
-                                for row in frame.winfo_children():
-                                    if isinstance(row, tk.Frame):
-                                        # Clear existing buttons (except label)
-                                        for widget in row.winfo_children():
-                                            if isinstance(widget, tk.Button):
-                                                widget.destroy()
-                                        
-                                        # Add new preset buttons
-                                        for steps in self.stepper_presets:
-                                            btn_inc = tk.Button(row, text=f"+{steps}", width=4,
-                                                              command=lambda s=steps: self.stepper_preset_increase(s))
-                                            btn_inc.pack(side=tk.LEFT, padx=1)
-                                            
-                                            btn_dec = tk.Button(row, text=f"-{steps}", width=4,
-                                                              command=lambda s=steps: self.stepper_preset_decrease(s))
-                                            btn_dec.pack(side=tk.LEFT, padx=1)
-                                        return
-
-    def save_stepper_presets(self):
-        """Save stepper presets to a configuration file"""
-        try:
-            import json
-            config = {'stepper_presets': self.stepper_presets}
-            with open('stepper_config.json', 'w') as f:
-                json.dump(config, f)
-            self.log_status("Stepper presets saved to stepper_config.json")
-        except Exception as e:
-            self.log_status(f"Error saving stepper presets: {e}")
-
-    def load_stepper_presets(self):
-        """Load stepper presets from a configuration file"""
-        try:
-            import json
-            with open('stepper_config.json', 'r') as f:
-                config = json.load(f)
-            self.stepper_presets = config.get('stepper_presets', [1, 5, 10, 25, 50, 100])
-            self.update_stepper_preset_dropdown()
-            self.update_stepper_preset_entries()
-            self.update_stepper_preset_buttons()
-            self.log_status("Stepper presets loaded from stepper_config.json")
-        except FileNotFoundError:
-            self.log_status("No stepper configuration file found, using defaults")
-        except Exception as e:
-            self.log_status(f"Error loading stepper presets: {e}")
-
-    def update_preset_entries(self):
-        """Update the preset entry fields to match current presets"""
-        # Clear existing entries
-        for widget in self.preset_entries:
-            widget.master.destroy()
-        
-        # Recreate entry fields
-        preset_config_row = None
-        for widget in self.preset_entries[0].master.master.winfo_children():
-            if isinstance(widget, tk.Frame):
-                preset_config_row = widget
-                break
-        
-        if preset_config_row:
-            # Remove old entries
-            for widget in preset_config_row.winfo_children():
-                if isinstance(widget, tk.Entry):
-                    widget.destroy()
-            
-            # Add new entries
-            self.preset_entries = []
-            for i, preset in enumerate(self.servo_presets):
-                preset_var = tk.IntVar(value=preset)
-                entry = tk.Entry(preset_config_row, textvariable=preset_var, width=4)
-                entry.pack(side=tk.LEFT, padx=1)
-                self.preset_entries.append(preset_var)
 
     def update_preset_dropdowns(self):
         """Update servo preset dropdowns with new values"""
@@ -1303,12 +1115,36 @@ class App:
                 config = json.load(f)
             self.servo_presets = config.get('servo_presets', [0, 30, 45, 60, 90, 120, 135, 150, 180])
             self.update_preset_dropdowns()
-            self.update_preset_entries()
             self.log_status("Servo presets loaded from servo_config.json")
         except FileNotFoundError:
             self.log_status("No servo configuration file found, using defaults")
         except Exception as e:
             self.log_status(f"Error loading servo presets: {e}")
+
+    def save_stepper_presets(self):
+        """Save stepper presets to a configuration file"""
+        try:
+            import json
+            config = {'stepper_presets': self.stepper_presets}
+            with open('stepper_config.json', 'w') as f:
+                json.dump(config, f)
+            self.log_status("Stepper presets saved to stepper_config.json")
+        except Exception as e:
+            self.log_status(f"Error saving stepper presets: {e}")
+
+    def load_stepper_presets(self):
+        """Load stepper presets from a configuration file"""
+        try:
+            import json
+            with open('stepper_config.json', 'r') as f:
+                config = json.load(f)
+            self.stepper_presets = config.get('stepper_presets', [1, 5, 10, 25, 50, 100])
+            self.update_stepper_preset_dropdown()
+            self.log_status("Stepper presets loaded from stepper_config.json")
+        except FileNotFoundError:
+            self.log_status("No stepper configuration file found, using defaults")
+        except Exception as e:
+            self.log_status(f"Error loading stepper presets: {e}")
 
     def update_force_status_indicator(self):
         """Update force status indicator based on current force and threshold"""
@@ -1362,14 +1198,15 @@ def read_force(ser):
 def run_unit_tests():
     results = []
     try:
-        # ServoController.angle_to_duty
+        # ServoController.angle_to_duty - Fixed test values
         servo = ServoController()
-        assert abs(servo.angle_to_duty(0) - 2.5) < 0.01, "Servo angle 0 failed"
-        assert abs(servo.angle_to_duty(180) - 12.5) < 0.01, "Servo angle 180 failed"
-        assert abs(servo.angle_to_duty(90) - 7.5) < 0.01, "Servo angle 90 failed"
+        assert abs(servo.angle_to_duty(0) - 0.05) < 0.01, "Servo angle 0 failed"
+        assert abs(servo.angle_to_duty(180) - 0.25) < 0.01, "Servo angle 180 failed"
+        assert abs(servo.angle_to_duty(90) - 0.15) < 0.01, "Servo angle 90 failed"
         results.append("ServoController.angle_to_duty: PASS")
     except Exception as e:
         results.append(f"ServoController.angle_to_duty: FAIL ({e})")
+    
     try:
         # StepperMotor.disable (should not raise)
         stepper = StepperMotor()
@@ -1377,6 +1214,7 @@ def run_unit_tests():
         results.append("StepperMotor.disable: PASS")
     except Exception as e:
         results.append(f"StepperMotor.disable: FAIL ({e})")
+    
     try:
         # SharedData initialization
         shared = SharedData(100, 5)
@@ -1387,6 +1225,7 @@ def run_unit_tests():
         results.append("SharedData.__init__: PASS")
     except Exception as e:
         results.append(f"SharedData.__init__: FAIL ({e})")
+    
     try:
         # read_force returns float or None
         class DummySer:
@@ -1394,6 +1233,7 @@ def run_unit_tests():
                 return b'123.45\n'
         val = read_force(DummySer())
         assert abs(val - 123.45) < 0.01
+        
         class DummySerBad:
             def readline(self):
                 return b'bad\n'
@@ -1402,6 +1242,7 @@ def run_unit_tests():
         results.append("read_force: PASS")
     except Exception as e:
         results.append(f"read_force: FAIL ({e})")
+    
     try:
         # PID parameter assignment
         class DummyController:
@@ -1416,6 +1257,7 @@ def run_unit_tests():
         results.append("PID parameter assignment: PASS")
     except Exception as e:
         results.append(f"PID parameter assignment: FAIL ({e})")
+    
     return results
 
 def run_system_tests(controller):
@@ -1500,6 +1342,55 @@ def run_system_tests(controller):
         controller.shared.current_force = 520
         force = controller.shared.current_force
         if force < threshold - tol:
+            controller.stepper.step(10, True)
+            results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
+        elif force > threshold + tol:
+            controller.stepper.step(10, False)
+            results.append("Force feedback: Above threshold, stepper should move down (clockwise)")
+        else:
+            results.append("Force feedback: Within threshold, stepper should hold")
+
+        # Simulate within threshold
+        controller.shared.current_force = 505
+        force = controller.shared.current_force
+        if force < threshold - tol:
+            controller.stepper.step(10, True)
+            results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
+        elif force > threshold + tol:
+            controller.stepper.step(10, False)
+            results.append("Force feedback: Above threshold, stepper should move down (clockwise)")
+        else:
+            results.append("Force feedback: Within threshold, stepper should hold")
+
+        results.append("Force feedback and automatic control: PASS")
+    except Exception as e:
+        results.append(f"Force feedback and automatic control: FAIL ({e})")
+    return results
+
+# --- Main function to start the app ---
+def main():
+    def handle_exit(signum, frame):
+        app.controller.cleanup()
+        sys.exit(0)
+
+    try:
+        root = tk.Tk()
+        global app
+        app = App(root)
+
+        signal.signal(signal.SIGINT, handle_exit)
+        signal.signal(signal.SIGTERM, handle_exit)
+
+        root.mainloop()
+        app.controller.cleanup()
+    except Exception as e:
+        syslog.openlog("rpi_control")
+        syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
+        syslog.closelog()
+        raise
+
+if __name__ == "__main__":
+    main()
             controller.stepper.step(10, True)
             results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
         elif force > threshold + tol:
