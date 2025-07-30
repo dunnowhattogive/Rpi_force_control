@@ -303,6 +303,9 @@ class Controller:
         # Remove GPIO.setmode(GPIO.BCM) -- not needed for gpiozero
         self.stepper = StepperMotor()
         self.servo_ctrl = ServoController()
+        
+        # Initialize app reference to None
+        self.app = None
 
         # Auto-detect load cell serial port
         detected_port = detect_load_cell_port()
@@ -364,19 +367,22 @@ class Controller:
             syslog.closelog()
             print("No load cell detected - running in simulation mode")
 
+        # Initialize running flag
+        self.running = True
+
         # --- MK10 Load Cell Configuration Notes ---
         # - Capacity: 10kg (10000g)
         # - Requires proper calibration with known weights
         # - HX711 amplifier needs calibration factor adjustment
         # - Tension-based: positive values indicate pulling force
-        self.log_status("MK10 Load Cell Configuration:")
-        self.log_status("- Capacity: 10kg (10000g)")
-        self.log_status("- Ensure HX711 is properly calibrated")
-        self.log_status("- Positive values = tension force")
+        print("MK10 Load Cell Configuration:")
+        print("- Capacity: 10kg (10000g)")
+        print("- Ensure HX711 is properly calibrated")
+        print("- Positive values = tension force")
         if self.ser:
-            self.log_status(f"- Connected on: {self.serial_port}")
+            print(f"- Connected on: {self.serial_port}")
         else:
-            self.log_status("- No load cell detected (simulation mode)")
+            print("- No load cell detected (simulation mode)")
 
         # PID parameters
         self.pid_kp = 0.1  # Proportional gain
@@ -404,6 +410,16 @@ class Controller:
     def set_app(self, app):
         """Set reference to App for logging"""
         self.app = app
+        
+        # Now that app is set, log the MK10 configuration to GUI
+        self.log_status("MK10 Load Cell Configuration:")
+        self.log_status("- Capacity: 10kg (10000g)")
+        self.log_status("- Ensure HX711 is properly calibrated")
+        self.log_status("- Positive values = tension force")
+        if self.ser:
+            self.log_status(f"- Connected on: {self.serial_port}")
+        else:
+            self.log_status("- No load cell detected (simulation mode)")
 
     def log_status(self, message):
         """Log status message to GUI if available, otherwise print"""

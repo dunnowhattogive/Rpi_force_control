@@ -1,403 +1,360 @@
-# rpi_control.py
+# RPi Control System
 
-## Overview
-
-[`rpi_control.py`](rpi_control.py) is a Python script designed to run on a Raspberry Pi for controlling a stepper motor and up to three servo motors, with real-time force feedback via a load cell. It features a Tkinter-based GUI for interactive control and monitoring. The script is intended for use in laboratory or automation setups where precise motor positioning and force regulation are required.
-
----
+A comprehensive Raspberry Pi control system for managing stepper motors, servo motors, and MK10 tension-based load cells with automatic force feedback control.
 
 ## Features
 
-- **Stepper Motor Control:**  
-  Move a stepper motor in both directions, with adjustable step count and direction, using GPIO pins.
-  - **Manual/Automatic Mode Toggle:** Switch between manual button control and automatic PID-based force adjustment using a checkbox in the Main tab
-  - **Visual Status Indicator:** Real-time display showing current control mode with color coding (Manual: blue, Automatic: green)
-  - **Preset Step Control:** Dropdown selection for quick step increments (1, 5, 10, 25, 50, 100 steps)
+### Hardware Support
+- **Stepper Motor Control**: NEMA 17 (E21H4N-2.5-900) via Easy Driver controller
+- **Servo Control**: Up to 3 SG90 servo motors with PWM control
+- **Load Cell Integration**: MK10 tension-based load cell (10kg capacity) with HX711 amplifier
+- **Auto-Detection**: Automatic detection of load cell serial ports (USB/UART)
+- **Simulation Mode**: Runs without hardware for development/testing
 
-- **Servo Motor Control:**  
-  Independently control up to three servo motors via PWM, setting their angles from 0° to 180°.
-  - **Real-time Sliders:** Interactive sliders with live angle display for precise control
-  - **Preset Dropdown Menus:** Quick angle selection via configurable dropdown menus for each servo
-  - **Configurable Presets:** Customizable preset angles that can be modified in the Settings tab
-  - **Individual Enable/Disable:** Control each servo independently with dedicated checkboxes in the Settings tab
+### Control Modes
+- **Manual Control**: Direct stepper/servo positioning via GUI
+- **Automatic Control**: PID-based force feedback control
+- **Preset System**: Configurable angle/step presets for quick positioning
+- **Real-time Monitoring**: Live force readings and status indicators
 
-- **Force Feedback:**  
-  Continuously read force data from a serial-connected load cell (e.g., via `/dev/ttyUSB0`), and use this feedback to automatically adjust the stepper motor to maintain a target force.
-  - **Visual Force Status Indicator:** Color-coded status display (Green: Within Range, Red: Outside Range)
-  - **Real-time Force Monitoring:** Live force value display with automatic updates
-
-- **Interactive GUI:**  
-  - **Main Tab:**
-    - Live force measurement display in readonly text boxes
-    - Current force threshold display with real-time updates
-    - Color-coded force status indicator (Green/Red)
-    - Real-time status log with timestamps showing all system activities
-    - Servo controls with sliders, angle displays, and preset dropdowns
-    - Manual/Automatic stepper control mode toggle with visual status indicator
-    - Stepper preset controls with dropdown selection and directional buttons
-    - Clear log functionality for status management
-  - **Settings Tab:**
-    - Fully editable pin configuration for all motors with Apply button
-    - Editable PID parameter adjustment (Kp, Ki, Kd) with Apply button
-    - Editable force threshold setting with Apply button
-    - Configurable servo preset angles with validation and Apply button
-    - Individual servo motor enable/disable checkboxes
-    - Overall servo and stepper control enable/disable checkboxes
-    - Stepper preset buttons for quick manual adjustments
-  - **Tests Tab:**
-    - Unit and system test execution with real-time results display
-    - Comprehensive test coverage for all components
-
-- **Real-time Status Logging:**  
-  All system activities are logged with timestamps in a scrollable status window in the Main tab, replacing terminal-only output with GUI-integrated feedback.
-
-- **Enhanced User Experience:**
-  - All user interactions provide immediate visual feedback in the status log
-  - Color-coded indicators for system status and force conditions
-  - Dropdown menus for quick preset selection
-  - Real-time updates for all monitored values
-
----
+### Software Features
+- **Multi-tab GUI**: Organized interface with Main, Settings, and Tests tabs
+- **Status Logging**: Timestamped event logging with auto-scroll
+- **Configuration Management**: Save/load presets and settings
+- **Unit Testing**: Built-in unit and system tests
+- **Error Handling**: Graceful fallback to simulation mode
 
 ## Hardware Requirements
 
-- **Raspberry Pi** (with gpiozero and serial support)
-- **Stepper Motor** (with driver connected to GPIO pins 16, 20, 21)
-- **Up to 3 Servo Motors** (connected to GPIO pins 17, 27, 22 by default)
-- **Load Cell** with serial output (connected to `/dev/ttyUSB0` or similar)
-- **Python 3** with the following packages:
-  - `gpiozero`
-  - `pyserial`
-  - `tkinter`
+### Essential Components
+- Raspberry Pi 4 (or compatible)
+- NEMA 17 Stepper Motor (E21H4N-2.5-900)
+- Easy Driver Stepper Controller
+- 3x SG90 Servo Motors
+- MK10 Tension Load Cell (10kg capacity)
+- HX711 Load Cell Amplifier
+- USB-to-Serial Adapter (for load cell communication)
 
----
+### Power Requirements
+- 5V 3A PSU (Raspberry Pi)
+- 12V 2A PSU (Stepper Motor)
+- 5V 2A PSU (Servos and Sensors)
 
-## Pin Assignments
+### Wiring Connections
 
-| Function         | GPIO Pin | Configurable |
-|------------------|----------|--------------|
-| Stepper DIR      | 20       | Yes          |
-| Stepper STEP     | 21       | Yes          |
-| Stepper ENABLE   | 16       | Yes          |
-| Servo 1 PWM      | 17       | Yes          |
-| Servo 2 PWM      | 27       | Yes          |
-| Servo 3 PWM      | 22       | Yes          |
+#### Stepper Motor (Easy Driver)
+- GPIO 20 → DIR (Direction)
+- GPIO 21 → STEP (Step pulse)
+- GPIO 16 → ENABLE (Motor enable)
+- 12V PSU → Motor power
+- Common GND
 
-All pin assignments can be modified in the Settings tab with immediate effect using the Apply Pins button.
+#### Servo Motors
+- GPIO 17 → Servo 1 PWM (Orange wire)
+- GPIO 27 → Servo 2 PWM (Orange wire)
+- GPIO 22 → Servo 3 PWM (Orange wire)
+- 5V PSU → All servo power (Red wires)
+- Common GND → All servo ground (Brown wires)
 
----
+#### Load Cell System
+- MK10 Load Cell → HX711 Amplifier
+- HX711 → USB-Serial Adapter
+- USB-Serial → Raspberry Pi USB port
+- 5V PSU → HX711 power
+- Common GND
 
-## Control Modes
+## Installation
 
-### Manual Mode (Default)
-- **Direct Control:** Use "Increase Force" and "Decrease Force" buttons for immediate stepper motor control
-- **Button State:** Manual control buttons are enabled and functional
-- **Visual Indicator:** Status shows "Mode: Manual" in blue text
-- **Use Case:** Ideal for setup, testing, and precise manual adjustments
+### System Dependencies
+```bash
+sudo apt update
+sudo apt install python3 python3-pip python3-venv git
 
-### Automatic Mode
-- **PID Control:** Automatic force regulation using configurable PID parameters
-- **Button State:** Manual control buttons are automatically disabled to prevent conflicts
-- **Visual Indicator:** Status shows "Mode: Automatic" in green text
-- **Force Regulation:** System maintains force at set threshold using continuous feedback
-- **Use Case:** Ideal for consistent, hands-off operation and precise force maintenance
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-### Mode Switching
-- **Toggle Control:** Use the "Automatic Stepper Control" checkbox in the Main tab
-- **Instant Effect:** Mode changes take effect immediately
-- **Safe Transition:** System safely handles transitions between modes without conflicts
+# Install Python dependencies
+pip install -r requirements.txt
+```
 
----
+### Required Python Packages
+```bash
+pip install gpiozero pyserial tkinter matplotlib
+```
 
-## Software Structure
-
-### Classes and Functions
-
-- **`StepperMotor`**  
-  Controls the stepper motor via GPIO.  
-  - `step(steps, direction)`: Move the motor a given number of steps in the specified direction.
-  - `disable()`: Disable the stepper driver.
-
-- **`ServoController`**  
-  Controls up to three servos via PWM.  
-  - `set_angle(idx, angle)`: Set the angle of servo `idx` (0-based).
-  - `cleanup()`: Stop all PWM signals.
-
-- **`read_force(ser)`**  
-  Reads a line from the serial port, parses it as a float, and returns the force value in grams.
-
-- **`SharedData`**  
-  Holds shared state for communication between the main thread and the GUI (force threshold, tolerance, current force, status).
-
-- **`servo_force_gui(servo_ctrl, shared)`**  
-  Launches a Tkinter GUI for interactive control and monitoring.
-  - **Servo Presets:** Each servo has preset buttons at 30° intervals (0°, 30°, 60°, 90°, 120°, 150°, 180°) for quick angle selection.
-
-- **`Controller`**  
-  Integrates hardware control, force feedback, and GUI threading.  
-  Handles enabling/disabling of servo and stepper controls, force threshold adjustment, and graceful shutdown.
-
-- **`App`**  
-  Main Tkinter GUI application.  
-  Provides checkboxes for enabling/disabling servo and stepper controls, buttons for adjusting force threshold, and a stop button.
-
-- **`main()`**  
-  Initializes the application and handles signal-based shutdown.
-
----
+### Hardware Setup
+1. Connect all components according to wiring diagram
+2. Ensure proper power supply connections
+3. Calibrate HX711 amplifier with known weights
+4. Test load cell output via serial terminal
 
 ## Usage
 
-### 1. Hardware Setup
-
-- Connect the stepper and servo motors to the specified GPIO pins.
-- Connect the load cell to the Raspberry Pi via a USB-to-serial adapter.
-- Ensure the Raspberry Pi has the required Python packages installed.
-
-### 2. Install Dependencies
-
-You can use the provided installer script to automatically install all dependencies, set up autostart on boot, and run the program:
-
-```sh
-chmod +x install_and_run.sh
-./install_and_run.sh
-```
-
-This script will:
-- Install required system and Python packages
-- Install Python dependencies from `requirements.txt`
-- Copy the `rpicontrol.service` file to the correct location
-- Enable and start the service for autostart on boot
-
-Alternatively, you can install dependencies manually:
-
-```sh
-pip3 install -r requirements.txt
-```
-
-Or, using apt for system packages:
-
-```sh
-sudo apt-get install python3-tk python3-serial python3-rpi.gpio
-```
-
-### 3. Run the Script
-
-```sh
+### Starting the Application
+```bash
+cd /path/to/RPi_control
+source venv/bin/activate
 python3 rpi_control.py
 ```
 
-### 4. GUI Controls
+### GUI Interface
 
-- **Main Tab Controls:**
-  - **Force Displays:** Live force measurement and threshold values in readonly text boxes
-  - **Force Status Indicator:** Color-coded visual indicator (Green: Within Range, Red: Outside Range)
-  - **Status Log:** Real-time scrollable log with timestamps showing all system activities
-  - **Servo Controls:** 
-    - Interactive sliders with real-time angle display
-    - Preset dropdown menus for quick angle selection
-  - **Control Mode Toggle:** "Automatic Stepper Control" checkbox with visual status indicator
-  - **Stepper Preset Controls:** Dropdown selection with increase/decrease buttons
-  - **Clear Log Button:** Reset the status log display
+#### Main Tab
+- **Live Force Display**: Real-time load cell readings in grams
+- **Force Threshold**: Current target force value
+- **Force Status Indicator**: Visual status (WITHIN/ABOVE/BELOW range)
+- **Servo Controls**: Individual servo angle adjustment with presets
+- **Stepper Control**: Manual/automatic mode toggle with quick step presets
+- **Status Log**: Timestamped event logging
 
-- **Settings Tab Controls:**
-  - **Pin Configuration:** Editable text fields for all GPIO pin assignments with Apply button
-  - **PID Parameters:** Editable Kp, Ki, Kd values with Apply button for real-time tuning
-  - **Force Threshold:** Editable threshold setting with Apply button
-  - **Configurable Servo Presets:** Dropdown menus for each servo to select preset angles
-  - **Individual Servo Control:** Checkboxes to enable/disable each servo independently
-  - **Overall Control:** Master enable/disable for servo and stepper systems
-  - **Stepper Preset Buttons:** Quick access buttons for manual stepper adjustments
+#### Settings Tab
+- **PID Parameters**: Tune proportional, integral, derivative gains
+- **Pin Configuration**: Modify GPIO pin assignments
+- **Force Threshold**: Set target force values
+- **Preset Management**: Configure servo angles and stepper steps
+- **Enable/Disable Controls**: Individual component control
 
-- **Tests Tab Controls:**
-  - **Unit Tests:** Component-level testing with detailed results
-  - **System Tests:** End-to-end functionality testing
-  - **Real-time Results:** Test output displayed immediately in scrollable text area
+#### Tests Tab
+- **Unit Tests**: Verify component functionality
+- **System Tests**: End-to-end testing with hardware simulation
 
-### 5. Auto-Start on Boot
+### Configuration Files
 
-To run this program automatically on device boot, use the installer script as described above, or follow these manual steps:
+#### Servo Presets (`servo_config.json`)
+```json
+{
+  "servo_presets": [0, 30, 45, 60, 90, 120, 135, 150, 180]
+}
+```
 
-1. Copy `rpicontrol.service` to `/etc/systemd/system/`:
-   ```sh
-   sudo cp rpicontrol.service /etc/systemd/system/rpicontrol.service
-   ```
-2. Enable and start the service:
-   ```sh
-   sudo systemctl enable rpicontrol.service
-   sudo systemctl start rpicontrol.service
-   ```
+#### Stepper Presets (`stepper_config.json`)
+```json
+{
+  "stepper_presets": [1, 5, 10, 25, 50, 100]
+}
+```
 
-The service will now start the program automatically on boot.
+### MK10 Load Cell Calibration
 
-### 6. Stopping the Program from the GUI
+#### Prerequisites
+- Properly mounted MK10 load cell
+- HX711 amplifier correctly wired
+- Known calibration weights (1kg, 2kg, 5kg recommended)
 
-A "Stop Program" button has been added to the GUI.  
-Clicking this button will gracefully stop the program.
+#### Calibration Process
+1. Connect load cell system
+2. Power on and verify serial communication
+3. Apply known weights and record HX711 output
+4. Calculate calibration factor: `factor = (reading_with_weight - reading_no_weight) / known_weight`
+5. Update HX711 firmware/configuration with calibration factor
+6. Verify accuracy with multiple test weights
 
-### 7. Stopping the Program
+#### Expected Output Format
+The HX711 should output calibrated force values in grams via serial:
+```
+0.00
+156.23
+345.67
+1023.45
+```
 
-- Press `Ctrl+C` in the terminal to stop the script safely.  
-  The script will disable the motors and clean up GPIO on exit.
+## API Reference
 
----
+### Controller Class
+```python
+controller = Controller()
+controller.increase_force()    # Manual stepper increment
+controller.decrease_force()    # Manual stepper decrement
+controller.set_app(app)        # Set GUI reference for logging
+```
 
-## Customization
+### Stepper Motor Control
+```python
+stepper = StepperMotor()
+stepper.step(steps=10, direction=True)   # True=anti-clockwise, False=clockwise
+stepper.disable()                        # Disable motor
+```
 
-- **Change Serial Port:**  
-  Edit the `SERIAL_PORT` variable in `Controller` to match your hardware (e.g., `/dev/ttyUSB1`).
+### Servo Control
+```python
+servo_ctrl = ServoController()
+servo_ctrl.set_angle(idx=0, angle=90)    # Set servo 0 to 90 degrees
+```
 
-- **Adjust Stepper/Servo Pins:**  
-  Modify `DIR_PIN`, `STEP_PIN`, `ENABLE_PIN` in `StepperMotor` and `SERVO_PINS` in `ServoController` as needed.
-
-- **Force Target and Tolerance:**  
-  Set initial values in `FORCE_TARGET` and `FORCE_TOLERANCE` in `Controller`.
-
----
-
-## Example Workflow
-
-1. Start the script.
-2. Use the GUI to set servo angles and force threshold.
-3. Use preset buttons for quick servo positioning.
-4. The system will automatically move the stepper motor to maintain the measured force within the specified threshold and tolerance.
-5. Monitor the force and status in real time.
-6. Use checkboxes to enable/disable servo or stepper controls as needed.
-
----
+### Load Cell Reading
+```python
+force = read_force(serial_port)          # Returns force in grams or None
+```
 
 ## Troubleshooting
 
-- **No Hardware Connected:**  
-  You can run and test the GUI, settings, and tests without any hardware attached.  
-  All hardware actions are simulated and printed to the console.
+### Common Issues
 
-- **Startup Errors:**  
-  If the program fails to start (e.g., missing `/dev/ttyUSB0`, GPIO errors), the error is logged to `syslog` for diagnosis.
+#### Load Cell Not Detected
+- **Symptoms**: "No load cell detected (simulation mode)" message
+- **Solutions**:
+  - Check USB-Serial adapter connection
+  - Verify HX711 power supply (5V)
+  - Test serial communication manually
+  - Ensure proper baud rate (9600)
+  - Check device permissions: `sudo usermod -a -G dialout $USER`
 
-- **Serial Port Not Found:**  
-  If `/dev/ttyUSB0` is not present, the GUI will still run and display simulated force readings.
+#### Stepper Motor Not Moving
+- **Symptoms**: "[SIM] Stepper step" messages in log
+- **Solutions**:
+  - Verify GPIO pin connections
+  - Check 12V power supply to Easy Driver
+  - Ensure proper wiring (DIR, STEP, ENABLE pins)
+  - Test with multimeter for signal presence
+  - Run with `sudo` for GPIO access
 
-- **GPIO Errors:**  
-  If GPIO cannot be initialized (e.g., not running on a Raspberry Pi), all motor actions are simulated.
+#### Servo Motors Not Responding
+- **Symptoms**: "[SIM] Servo X set to angle Y" messages
+- **Solutions**:
+  - Check 5V power supply connections
+  - Verify PWM signal wires (orange)
+  - Ensure common ground connection
+  - Test individual servos with simple PWM script
 
----
+#### GUI Errors
+- **Symptoms**: AttributeError or widget-related errors
+- **Solutions**:
+  - Update tkinter: `sudo apt install python3-tk`
+  - Check Python version compatibility (3.8+)
+  - Verify all dependencies installed
+  - Run from terminal to see full error messages
 
-## File Reference
+### GPIO Pin Factory Warnings
+These warnings are normal when running without proper GPIO access:
+```
+PinFactoryFallback: Falling back from lgpio: No module named 'lgpio'
+```
+Solutions:
+- Install GPIO libraries: `sudo apt install python3-lgpio python3-rpi.gpio`
+- Run with sudo: `sudo python3 rpi_control.py`
+- Add user to gpio group: `sudo usermod -a -G gpio $USER`
 
-- [rpi_control.py](rpi_control.py): Main script for motor and force control.
-- [requirements.txt](requirements.txt): Python package requirements.
-- [install_and_run.sh](install_and_run.sh): Installer script for dependencies and autostart setup.
-- [rpicontrol.service](rpicontrol.service): Systemd service file for autostart on boot.
+### Force Calibration Issues
+- **Symptoms**: Incorrect force readings, unstable values
+- **Solutions**:
+  - Recalibrate HX711 with precision weights
+  - Check load cell mounting (proper tension alignment)
+  - Verify electrical connections (no loose wires)
+  - Shield from electromagnetic interference
+  - Use proper gauge wires (18-22 AWG)
 
-## File Explanations
+## Development
 
-### rpi_control.py
+### File Structure
+```
+RPi_control/
+├── rpi_control.py              # Main application
+├── generate_connection_diagram.py  # Hardware diagram generator
+├── requirements.txt            # Python dependencies
+├── README.md                  # This documentation
+├── servo_config.json         # Servo preset configuration
+├── stepper_config.json       # Stepper preset configuration
+└── docs/
+    ├── connection_diagrams/   # Generated wiring diagrams
+    └── api_documentation.md   # API reference
+```
 
-This is the main Python script and entry point for the RPi Control application.  
-It contains:
-- The GUI logic (using Tkinter)
-- Core functionality for controlling the device, including force reading and feedback
-- Automatic adjustment of force:  
-  - If the force reading goes below a threshold, the stepper motor turns anti-clockwise to increase force  
-  - If the force reading goes above the threshold, the stepper motor turns clockwise to decrease force
-- Manual "Increase Force Threshold" and "Decrease Force Threshold" buttons to adjust the threshold value
-- Manual "Increase Force" and "Decrease Force" buttons to directly control the stepper motor (these allow you to manually apply or release force through the stepper motor regardless of the threshold)
-- Checkboxes to enable/disable servo and stepper motor controls individually
-- **Servo and Stepper Motor Pin Selection:** GUI fields and an "Apply Pins" button allow you to set the GPIO pins for all motors at runtime.
-- A "Stop Program" button for graceful shutdown
+### Adding New Features
 
-### install_and_run.sh
+#### New Hardware Components
+1. Add hardware class in appropriate section
+2. Update pin configuration in Settings tab
+3. Add control widgets in Main tab
+4. Include in unit/system tests
+5. Update connection diagram
 
-This shell script automates the installation of all required dependencies, sets up the systemd service for autostart, and can optionally run the main program immediately.
+#### New Control Modes
+1. Add mode toggle in GUI
+2. Implement control logic in Controller class
+3. Add status indicators
+4. Include in system tests
 
-### rpicontrol.service
+### Testing
 
-A systemd service file that ensures `rpi_control.py` runs automatically on boot.
+#### Unit Tests
+```bash
+python3 -c "from rpi_control import run_unit_tests; print('\n'.join(run_unit_tests()))"
+```
 
-### main.py
+#### System Tests
+```bash
+python3 -c "from rpi_control import *; controller = Controller(); print('\n'.join(run_system_tests(controller)))"
+```
 
-This file contains the main application logic, integrating the GUI and hardware control components.  
-It initializes the shared data, sets up the controller and GUI, and manages the application lifecycle.
+## Hardware Connection Diagrams
 
-## Platform Support
+Generate updated wiring diagrams:
+```bash
+python3 generate_connection_diagram.py
+```
 
-- **Raspberry Pi:** This program is designed to run on Raspberry Pi devices.
-- **LCD Touch Screen:** The GUI is compatible with LCD touch screens connected to the Raspberry Pi, allowing for touch-based interaction.
+This creates:
+- `rpi_control_main_diagram.png` - Complete system overview
+- `rpi_control_legend.png` - Component color coding
+- `rpi_control_pin_table.png` - Pin assignment reference
+- `rpi_control_notes.png` - System notes and safety information
+- `rpi_control_complete_documentation.pdf` - All diagrams combined
 
----
+## Safety Considerations
 
-## Using This Project on Non-Linux Systems
+### Electrical Safety
+- Use proper gauge wires for power connections (18-22 AWG minimum)
+- Ensure stable power supplies with adequate current capacity
+- Implement proper grounding for all components
+- Use fuses/circuit breakers for protection
+- Avoid mixing AC and DC circuits
 
-This project is primarily designed for Raspberry Pi (Linux) hardware, using GPIO and serial interfaces specific to the Pi.  
-For non-Linux users (e.g., Windows, macOS):
+### Mechanical Safety
+- Properly mount and secure all moving components
+- Ensure adequate clearance for stepper motor rotation
+- Use appropriate load cell mounting hardware
+- Test all mechanical connections before applying full loads
+- Implement emergency stop functionality
 
-- **Direct Use:**  
-  Most features (GPIO, RPi.GPIO, systemd, etc.) will not work natively on Windows or macOS, as they require Raspberry Pi hardware and Linux-specific libraries.
-
-- **Development/Testing:**  
-  - You can run and test the GUI logic on Windows/macOS by commenting out or mocking hardware-specific code (e.g., RPi.GPIO, serial).
-  - Use Python's `unittest.mock` or conditional imports to bypass hardware dependencies for development.
-
-- **Emulation:**  
-  - Consider using a Raspberry Pi emulator or a virtual machine running Raspberry Pi OS for more complete testing.
-  - Some GPIO libraries offer "mock" modes for development.
-
-- **Deployment:**  
-  - For actual hardware control, you must deploy and run the project on a Raspberry Pi running Raspberry Pi OS (Linux).
-
-- **Alternative:**  
-  - If you need cross-platform hardware control, consider using USB-based controllers or microcontrollers (e.g., Arduino) that communicate via serial/USB, and adapt the code accordingly.
-
----
-
-## Testing
-
-The GUI includes a **Tests** tab where you can run both unit and system tests:
-
-- **Unit Tests:**  
-  Validate core logic such as servo duty cycle calculation, stepper motor disable, shared data initialization, force reading parsing, and PID parameter assignment.
-
-- **System Tests:**  
-  Exercise hardware control methods, manual force control, threshold adjustment, PID logic, and force feedback/automatic control.  
-  The PID logic test checks error, output, step calculation, and direction.  
-  The force feedback tests simulate force readings below, within, and above the threshold and verify correct stepper motor response.
-
-Test results are displayed in the GUI for easy verification.
-
-- **Simulated Hardware:**  
-  All tests and GUI actions work in simulation mode if hardware is not available.
-
----
+### Software Safety
+- Always test in simulation mode first
+- Implement bounds checking for all motor movements
+- Use reasonable force thresholds to prevent damage
+- Include timeout mechanisms for automatic control
+- Log all critical operations for debugging
 
 ## License
 
-This script is provided as-is for educational and research purposes.  
-Adapt and modify as needed.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-# Recent Updates
+## Support
 
-### Enhanced User Interface
-- **Real-time Status Logging:** All system activities now display in a timestamped status log within the Main tab GUI
-- **Visual Force Status Indicator:** Color-coded indicator showing force range status (Green: Within Range, Red: Outside Range)
-- **Dropdown Preset Controls:** Servo and stepper presets accessible via dropdown menus in the Main tab
-- **Live Angle Display:** Real-time angle values displayed next to servo sliders
-- **Scrollable Status Log:** Comprehensive activity logging with auto-scroll and clear functionality
+For issues and questions:
+1. Check the troubleshooting section
+2. Review the hardware connection diagrams
+3. Test with simulation mode
+4. Submit an issue with full error logs and hardware configuration
 
-### Improved Hardware Compatibility
-- **Enhanced Error Handling:** Graceful fallback when GPIO libraries are not available (lgpio, RPi.GPIO, pigpio)
-- **Simulation Mode Support:** Full GUI functionality available without physical hardware
-- **Serial Port Resilience:** Continues operation even when load cell serial port is unavailable
-- **Development-Friendly:** Can run on non-Raspberry Pi systems for GUI development and testing
+## Changelog
 
-### Better User Experience
-- **Timestamp Logging:** All activities logged with precise timestamps for better tracking
-- **Color-coded Status:** Visual indicators use intuitive color schemes (Green: Good, Red: Alert, Blue: Manual)
-- **Dropdown Navigation:** Quick access to presets without button clutter
-- **Auto-scroll Logging:** Status log automatically scrolls to show latest activities
-- **Robust Initialization:** Proper component initialization order prevents startup errors
+### Version 2.1.0 (Current)
+- Added automatic load cell port detection
+- Enhanced error handling and reconnection capability
+- Improved connection diagram generation with detailed labeling
+- Added comprehensive unit and system testing
+- Enhanced documentation with troubleshooting guides
+- Optimized GUI performance and responsiveness
 
-### Development and Testing Features
-- **Hardware-Independent GUI:** Interface works fully in simulation mode for development
-- **Clear Error Messages:** Informative error handling for missing dependencies
-- **Flexible Configuration:** All hardware settings configurable through GUI without code changes
+### Version 2.0.0
+- Added MK10 load cell support with auto-detection
+- Implemented PID-based force feedback control
+- Enhanced GUI with tabbed interface and status logging
+- Added comprehensive testing framework
+- Improved error handling and simulation mode
+- Generated hardware connection diagrams
+
+### Version 1.0.0
+- Initial release with basic stepper and servo control
+- Simple GUI interface
+- Manual control modes only
