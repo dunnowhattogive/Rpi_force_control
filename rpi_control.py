@@ -1270,12 +1270,14 @@ def run_system_tests(controller):
         results.append("StepperMotor.step: PASS")
     except Exception as e:
         results.append(f"StepperMotor test: FAIL ({e})")
+    
     try:
         # Servo set_angle
         controller.servo_ctrl.set_angle(0, 90)
         results.append("ServoController.set_angle: PASS")
     except Exception as e:
         results.append(f"ServoController.set_angle: FAIL ({e})")
+    
     try:
         # Controller manual force control
         controller.stepper.step = lambda steps, direction: results.append(f"Stepper step called: steps={steps}, direction={direction}")
@@ -1285,6 +1287,7 @@ def run_system_tests(controller):
         results.append("Controller.increase_force/decrease_force: PASS")
     except Exception as e:
         results.append(f"Controller.increase_force/decrease_force: FAIL ({e})")
+    
     try:
         # Controller threshold adjustment
         old = controller.shared.force_threshold
@@ -1295,6 +1298,7 @@ def run_system_tests(controller):
         results.append("Controller.increase_threshold/decrease_threshold: PASS")
     except Exception as e:
         results.append(f"Controller.increase_threshold/decrease_threshold: FAIL ({e})")
+    
     try:
         # PID logic test
         controller.pid_kp = 0.2
@@ -1316,6 +1320,7 @@ def run_system_tests(controller):
         results.append("PID logic test: PASS")
     except Exception as e:
         results.append(f"PID logic test: FAIL ({e})")
+    
     try:
         # Force feedback and automatic control test
         controller.shared.force_threshold = 500
@@ -1365,55 +1370,7 @@ def run_system_tests(controller):
         results.append("Force feedback and automatic control: PASS")
     except Exception as e:
         results.append(f"Force feedback and automatic control: FAIL ({e})")
-    return results
-
-# --- Main function to start the app ---
-def main():
-    def handle_exit(signum, frame):
-        app.controller.cleanup()
-        sys.exit(0)
-
-    try:
-        root = tk.Tk()
-        global app
-        app = App(root)
-
-        signal.signal(signal.SIGINT, handle_exit)
-        signal.signal(signal.SIGTERM, handle_exit)
-
-        root.mainloop()
-        app.controller.cleanup()
-    except Exception as e:
-        syslog.openlog("rpi_control")
-        syslog.syslog(syslog.LOG_ERR, f"rpi_control.py failed to start: {e}\n{traceback.format_exc()}")
-        syslog.closelog()
-        raise
-
-if __name__ == "__main__":
-    main()
-            controller.stepper.step(10, True)
-            results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
-        elif force > threshold + tol:
-            controller.stepper.step(10, False)
-            results.append("Force feedback: Above threshold, stepper should move down (clockwise)")
-        else:
-            results.append("Force feedback: Within threshold, stepper should hold")
-
-        # Simulate within threshold
-        controller.shared.current_force = 505
-        force = controller.shared.current_force
-        if force < threshold - tol:
-            controller.stepper.step(10, True)
-            results.append("Force feedback: Below threshold, stepper should move up (anti-clockwise)")
-        elif force > threshold + tol:
-            controller.stepper.step(10, False)
-            results.append("Force feedback: Above threshold, stepper should move down (clockwise)")
-        else:
-            results.append("Force feedback: Within threshold, stepper should hold")
-
-        results.append("Force feedback and automatic control: PASS")
-    except Exception as e:
-        results.append(f"Force feedback and automatic control: FAIL ({e})")
+    
     return results
 
 # --- Main function to start the app ---
