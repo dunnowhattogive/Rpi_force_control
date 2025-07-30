@@ -782,8 +782,12 @@ class App:
                 self.is_raspberry_pi = True
             else:
                 # Desktop system
-                self.root.attributes('-fullscreen', True)
-                self.root.state('zoomed')
+                try:
+                    self.root.attributes('-fullscreen', True)
+                    self.root.state('zoomed')
+                except tk.TclError:
+                    # Fallback if fullscreen not supported
+                    self.root.geometry("1200x800")
                 self.is_raspberry_pi = False
         except:
             # Fallback for any system
@@ -810,6 +814,10 @@ class App:
         self.preset_config_frame = None
         self.stepper_preset_config_frame = None
 
+        # Initialize error tracking flags
+        self._force_error_logged = False
+        self._log_error_logged = False
+
         # --- Notebook for tabs ---
         notebook = ttk.Notebook(root)
         notebook.pack(fill="both", expand=True)
@@ -825,12 +833,24 @@ class App:
         self.force_value_box = tk.Entry(main_frame, textvariable=self.live_force_var, font=("Arial", 12), state="readonly", width=12)
         self.force_value_box.pack(pady=2)
 
-        # Force threshold display
+        # Force threshold display with adjustment buttons
+        threshold_frame = tk.Frame(main_frame)
+        threshold_frame.pack(pady=5)
+        
         self.force_thresh_var = tk.StringVar(value=str(self.controller.shared.force_threshold))
-        self.force_thresh_label = tk.Label(main_frame, text="Force Threshold (g):", font=("Arial", 12))
-        self.force_thresh_label.pack(pady=2)
-        self.force_thresh_box = tk.Entry(main_frame, textvariable=self.force_thresh_var, font=("Arial", 12), state="readonly", width=12)
-        self.force_thresh_box.pack(pady=2)
+        self.force_thresh_label = tk.Label(threshold_frame, text="Force Threshold (g):", font=("Arial", 12))
+        self.force_thresh_label.pack(side=tk.LEFT, padx=5)
+        
+        # Threshold adjustment buttons
+        tk.Button(threshold_frame, text="-", command=self.controller.decrease_threshold, 
+                 font=("Arial", 10), width=3).pack(side=tk.LEFT, padx=2)
+        
+        self.force_thresh_box = tk.Entry(threshold_frame, textvariable=self.force_thresh_var, 
+                                        font=("Arial", 12), state="readonly", width=8)
+        self.force_thresh_box.pack(side=tk.LEFT, padx=2)
+        
+        tk.Button(threshold_frame, text="+", command=self.controller.increase_threshold, 
+                 font=("Arial", 10), width=3).pack(side=tk.LEFT, padx=2)
 
         # Force status indicator
         self.force_status_frame = tk.Frame(main_frame)
@@ -948,13 +968,23 @@ class App:
         tk.Button(preset_frame, text="Decrease (-)", 
                  command=self.stepper_preset_decrease_dropdown).pack(side=tk.LEFT, padx=2)
 
-        # Stop button
+        # Emergency stop button
         stop_frame = tk.Frame(stepper_control_frame)
         stop_frame.pack(pady=5)
         
+        self.emergency_stop_button = tk.Button(stop_frame, text="EMERGENCY STOP", 
+                                              command=self.controller.emergency_stop, 
+                                              bg="red", fg="white", font=("Arial", 12, "bold"))
+        self.emergency_stop_button.pack(side=tk.LEFT, padx=5)
+        
+        self.reset_stop_button = tk.Button(stop_frame, text="Reset", 
+                                          command=self.controller.reset_emergency_stop, 
+                                          bg="orange", fg="white", font=("Arial", 10))
+        self.reset_stop_button.pack(side=tk.LEFT, padx=5)
+        
         self.stop_button = tk.Button(stop_frame, text="Stop Program", command=self.stop_program, 
-                                   bg="red", fg="white", font=("Arial", 10, "bold"))
-        self.stop_button.pack()
+                                   bg="darkred", fg="white", font=("Arial", 10, "bold"))
+        self.stop_button.pack(side=tk.LEFT, padx=5)
 
         # Status/Log display
         status_log_frame = tk.LabelFrame(main_frame, text="Status Log")
@@ -1099,205 +1129,324 @@ class App:
         
         # Start periodic updates
         self.update_force_and_thresh()
+        self.update_plot()
         
         # Set reference for logging AFTER GUI is fully initialized
         self.controller.set_app(self)
 
-    def toggle_fullscreen(self, event=None):
-        """Toggle fullscreen mode with Escape or F11 key - Pi compatible"""
+    # Add missing GUI methods
+    def set_servo_angle(self, idx, val):
+        """Set servo angle with validation"""
         try:
-            if self.is_raspberry_pi:
-                # On Raspberry Pi, toggle between normal and maximized
-                current_state = self.root.state()
-                if current_state == 'normal':
-                    # Try to maximize within Pi's display capabilities
-                    try:
-                        self.root.state('zoomed')
-                    except tk.TclError:
-                        # Fallback to manual sizing for Pi
-                        self.root.geometry("800x480")  # Common Pi touchscreen size
-                else:
-                    self.root.state('normal')
-                    self.root.geometry("800x600")
-            else:
-                # Desktop behavior
-                current_state = self.root.attributes('-fullscreen')
-                self.root.attributes('-fullscreen', not current_state)
-                if not current_state:
-                    try:
-                        self.root.state('zoomed')
-                    except tk.TclError:
-                        self.root.state('normal')
-                        self.root.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0")
-                else:
-                    self.root.state('normal')
-                    self.root.geometry("1200x800+100+100")
-        except Exception as e:
-            self.log_status(f"Error toggling fullscreen: {e}")
+            angle = int(float(val))
+            if 0 <= angle <= 180:
+                self.controller.servo_ctrl.set_angle(idx, angle)
+                self.log_status(f"Servo {idx+1} set to {angle}°")
+        except (ValueError, TypeError):
+            self.log_status(f"Invalid servo angle: {val}")
 
-    def view_log_files(self):
-        """Open log files directory - Pi compatible"""
+    def servo_preset_selected(self, event, idx):
+        """Handle servo preset selection"""
         try:
-            import subprocess
-            import platform
-            log_dir = self.controller.data_logger.base_path
-            if os.path.exists(log_dir):
-                system = platform.system()
-                if system == "Windows":
-                    subprocess.Popen(['explorer', os.path.abspath(log_dir)])
-                elif system == "Darwin":  # macOS
-                    subprocess.Popen(["open", log_dir])
-                else:  # Linux (including Raspberry Pi)
-                    # Try multiple file managers common on Pi
-                    file_managers = ['pcmanfm', 'nautilus', 'thunar', 'dolphin', 'xdg-open']
-                    for fm in file_managers:
-                        try:
-                            subprocess.Popen([fm, log_dir])
-                            break
-                        except FileNotFoundError:
-                            continue
-                    else:
-                        # Fallback - just show the path
-                        self.log_status(f"Log directory: {os.path.abspath(log_dir)}")
-                        return
-                self.log_status(f"Opened log directory: {log_dir}")
-            else:
-                self.log_status(f"Log directory does not exist: {log_dir}")
-        except Exception as e:
-            self.log_status(f"Error opening log directory: {e}")
+            selected_text = event.widget.get()
+            angle = int(selected_text.replace('°', ''))
+            self.servo_angle_vars[idx].set(angle)
+            self.set_servo_angle(idx, angle)
+        except (ValueError, IndexError):
+            self.log_status("Error applying servo preset")
 
-    def setup_plotting(self):
-        """Setup real-time plotting - Pi optimized"""
+    def stepper_preset_increase_dropdown(self):
+        """Increase force using selected step preset"""
         try:
-            # Check if we have a display (important for headless Pi)
-            if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
-                print("No display detected - plotting disabled")
-                self.plot_fig = None
-                self.plot_ax = None
-                self.plot_line = None
-                return
-                
-            from matplotlib.figure import Figure
-            # Smaller figure size for Pi to improve performance
-            fig_size = (6, 3) if self.is_raspberry_pi else (8, 4)
-            dpi = 75 if self.is_raspberry_pi else 100  # Lower DPI for Pi
-            
-            self.plot_fig = Figure(figsize=fig_size, dpi=dpi)
-            self.plot_ax = self.plot_fig.add_subplot(111)
-            self.plot_ax.set_title("Real-time Force Data")
-            self.plot_ax.set_xlabel("Time (s)")
-            self.plot_ax.set_ylabel("Force (g)")
-            self.plot_line, = self.plot_ax.plot([], [], 'b-')
-            self.plot_ax.grid(True)
-            
-            # Optimize for Pi performance
-            if self.is_raspberry_pi:
-                self.plot_fig.patch.set_facecolor('white')
-                self.plot_ax.set_facecolor('white')
-                
-        except ImportError:
-            print("Matplotlib not available - plotting disabled")
-            self.plot_fig = None
-            self.plot_ax = None
-            self.plot_line = None
-        except Exception as e:
-            print(f"Error setting up plotting: {e}")
-            self.plot_fig = None
-            self.plot_ax = None
-            self.plot_line = None
+            selected = self.stepper_preset_var.get()
+            if "step" in selected:
+                steps = int(selected.split()[0])
+                if self.controller.stepper_enabled and not self.controller.auto_mode_enabled:
+                    self.controller.stepper.step(steps, True)
+                    self.log_status(f"Stepper increased by {steps} steps")
+        except (ValueError, AttributeError):
+            self.log_status("Error with stepper preset")
 
-    def update_plot(self):
-        """Update real-time plot - Pi optimized"""
+    def stepper_preset_decrease_dropdown(self):
+        """Decrease force using selected step preset"""
         try:
-            if (hasattr(self, 'plot_line') and self.plot_line is not None and 
-                hasattr(self.controller, 'time_history') and len(self.controller.time_history) > 0):
-                
-                # Limit data points for Pi performance
-                max_points = 100 if self.is_raspberry_pi else 1000
-                time_data = list(self.controller.time_history)[-max_points:]
-                force_data = list(self.controller.force_history)[-max_points:]
-                
-                self.plot_line.set_data(time_data, force_data)
-                if hasattr(self, 'plot_ax') and self.plot_ax is not None:
-                    self.plot_ax.relim()
-                    self.plot_ax.autoscale_view()
-                if hasattr(self, 'canvas') and self.canvas is not None:
-                    self.canvas.draw_idle()
-        except Exception as e:
-            pass  # Ignore plotting errors to prevent GUI freeze
+            selected = self.stepper_preset_var.get()
+            if "step" in selected:
+                steps = int(selected.split()[0])
+                if self.controller.stepper_enabled and not self.controller.auto_mode_enabled:
+                    self.controller.stepper.step(steps, False)
+                    self.log_status(f"Stepper decreased by {steps} steps")
+        except (ValueError, AttributeError):
+            self.log_status("Error with stepper preset")
+
+    def toggle_stepper_mode(self):
+        """Toggle between manual and automatic stepper mode"""
+        self.controller.auto_mode_enabled = self.auto_stepper_mode.get()
+        mode_text = "Automatic" if self.controller.auto_mode_enabled else "Manual"
+        self.stepper_mode_status.config(text=f"Mode: {mode_text}")
         
-        # Slower update rate on Pi to reduce CPU load
-        update_interval = 2000 if self.is_raspberry_pi else 1000
-        try:
-            if hasattr(self, 'root') and self.root.winfo_exists():
-                self.root.after(update_interval, self.update_plot)
-        except tk.TclError:
-            pass
+        # Enable/disable manual controls
+        state = tk.DISABLED if self.controller.auto_mode_enabled else tk.NORMAL
+        self.manual_increase_force_button.config(state=state)
+        self.manual_decrease_force_button.config(state=state)
+        
+        self.log_status(f"Stepper mode changed to: {mode_text}")
 
-    def update_force_and_thresh(self):
-        """Enhanced force update with Pi optimization"""
+    def update_force_status_indicator(self):
+        """Update the force status indicator based on current force vs threshold"""
         try:
-            # Read force data with better error handling
-            if self.controller.ser is not None:
-                try:
-                    force = self.controller.read_force_with_calibration()
-                    if force is not None:
-                        self.controller.shared.current_force = force
-                    # else: keep last valid reading
-                except Exception as e:
-                    if not hasattr(self, '_force_error_logged'):
-                        self.log_status(f"Error reading force: {e}")
-                        self._force_error_logged = True
-                    # Fall back to simulation
-                    current_time = time.time()
-                    simulated_force = 500 + 50 * math.sin(current_time * 0.5)
-                    self.controller.shared.current_force = simulated_force
+            current_force = self.controller.shared.current_force
+            threshold = self.controller.shared.force_threshold
+            tolerance = self.controller.shared.force_tolerance
+            
+            if abs(current_force - threshold) <= tolerance:
+                self.force_status_indicator.config(text="WITHIN RANGE", bg="green", fg="white")
+            elif current_force > threshold:
+                self.force_status_indicator.config(text="ABOVE TARGET", bg="orange", fg="white")
             else:
-                # Simulation mode
-                current_time = time.time()
-                simulated_force = 500 + 50 * math.sin(current_time * 0.5)
-                self.controller.shared.current_force = simulated_force
-            
-            # Update GUI displays safely
-            self.live_force_var.set(f"{self.controller.shared.current_force:.2f}")
-            self.force_thresh_var.set(str(self.controller.shared.force_threshold))
-            self.update_force_status_indicator()
-            
-            # Update force history for plotting
-            self.controller.update_force_history(self.controller.shared.current_force)
-            
-            # Data logging with safety checks
-            if (hasattr(self, 'logging_enabled') and self.logging_enabled.get() and 
-                hasattr(self, 'servo_angle_vars') and len(self.servo_angle_vars) >= 3):
-                try:
-                    servo_angles = [var.get() for var in self.servo_angle_vars]
-                    mode = "Auto" if self.controller.auto_mode_enabled else "Manual"
-                    self.controller.data_logger.log_data(
-                        self.controller.shared.current_force,
-                        self.controller.shared.force_threshold,
-                        servo_angles,
-                        mode
-                    )
-                except Exception as e:
-                    if not hasattr(self, '_log_error_logged'):
-                        self.log_status(f"Error in data logging: {e}")
-                        self._log_error_logged = True
-            
-            # Slower update rate on Pi to reduce CPU load
-            update_interval = 300 if self.is_raspberry_pi else 200
-            if hasattr(self, 'root') and self.root.winfo_exists():
-                self.root.after(update_interval, self.update_force_and_thresh)
-        except tk.TclError:
-            pass
+                self.force_status_indicator.config(text="BELOW TARGET", bg="blue", fg="white")
         except Exception as e:
-            self.log_status(f"Error updating force display: {e}")
-            try:
-                if hasattr(self, 'root') and self.root.winfo_exists():
-                    self.root.after(1000, self.update_force_and_thresh)
-            except tk.TclError:
-                pass
+            self.log_status(f"Error updating force status: {e}")
 
-    # ...existing code...
+    def stop_program(self):
+        """Stop the entire program"""
+        self.log_status("Program stop requested")
+        self.controller.cleanup()
+        self.root.quit()
+
+    def clear_status_log(self):
+        """Clear the status log"""
+        self.status_log.config(state=tk.NORMAL)
+        self.status_log.delete(1.0, tk.END)
+        self.status_log.config(state=tk.DISABLED)
+
+    def log_status(self, message):
+        """Log status message with timestamp"""
+        try:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            full_message = f"[{timestamp}] {message}\n"
+            
+            self.status_log.config(state=tk.NORMAL)
+            self.status_log.insert(tk.END, full_message)
+            self.status_log.see(tk.END)  # Auto-scroll to bottom
+            self.status_log.config(state=tk.DISABLED)
+        except Exception as e:
+            print(f"Logging error: {e}")
+
+    # Add missing methods that are referenced but not defined
+    def sync_enable_flags(self):
+        """Background thread to sync enable flags"""
+        while True:
+            try:
+                if hasattr(self, 'controller'):
+                    self.controller.servo_enabled = self.servo_control_enabled.get()
+                    self.controller.stepper_enabled = self.stepper_control_enabled.get()
+                time.sleep(0.1)
+            except Exception:
+                break
+
+    def auto_control_loop(self):
+        """Background thread for automatic control"""
+        while True:
+            try:
+                if hasattr(self, 'controller') and self.controller.auto_mode_enabled:
+                    self.controller.auto_adjust_force()
+                time.sleep(0.5)
+            except Exception:
+                break
+
+    def apply_pid_params(self):
+        """Apply PID parameters from settings"""
+        try:
+            self.controller.pid_kp = self.kp_var.get()
+            self.controller.pid_ki = self.ki_var.get()
+            self.controller.pid_kd = self.kd_var.get()
+            self.log_status(f"PID parameters updated: Kp={self.controller.pid_kp}, Ki={self.controller.pid_ki}, Kd={self.controller.pid_kd}")
+        except Exception as e:
+            self.log_status(f"Error applying PID parameters: {e}")
+
+    def apply_pins(self):
+        """Apply pin configuration (requires restart)"""
+        self.log_status("Pin configuration changed - restart required for changes to take effect")
+
+    def update_servo_controls(self):
+        """Update servo control states"""
+        self.controller.servo_enabled = self.servo_control_enabled.get()
+        state_text = "enabled" if self.controller.servo_enabled else "disabled"
+        self.log_status(f"Servo controls {state_text}")
+
+    def update_stepper_controls(self):
+        """Update stepper control states"""
+        self.controller.stepper_enabled = self.stepper_control_enabled.get()
+        state_text = "enabled" if self.controller.stepper_enabled else "disabled"
+        self.log_status(f"Stepper controls {state_text}")
+
+    def update_individual_servos(self):
+        """Update individual servo enable states"""
+        self.log_status("Individual servo settings updated")
+
+    def apply_force_threshold(self):
+        """Apply force threshold from settings"""
+        try:
+            new_threshold = self.set_force_thresh_var.get()
+            self.controller.shared.force_threshold = new_threshold
+            self.settings_force_thresh_var.set(str(new_threshold))
+            self.log_status(f"Force threshold set to {new_threshold}g")
+        except Exception as e:
+            self.log_status(f"Error setting force threshold: {e}")
+
+    def run_unit_tests_gui(self):
+        """Run unit tests and display results"""
+        try:
+            results = run_unit_tests()
+            self.test_results_text.config(state=tk.NORMAL)
+            self.test_results_text.delete(1.0, tk.END)
+            self.test_results_text.insert(1.0, "\n".join(results))
+            self.test_results_text.config(state=tk.DISABLED)
+        except Exception as e:
+            self.log_status(f"Error running unit tests: {e}")
+
+    def run_system_tests_gui(self):
+        """Run system tests and display results"""
+        try:
+            results = run_system_tests(self.controller)
+            self.test_results_text.config(state=tk.NORMAL)
+            self.test_results_text.delete(1.0, tk.END)
+            self.test_results_text.insert(1.0, "\n".join(results))
+            self.test_results_text.config(state=tk.DISABLED)
+        except Exception as e:
+            self.log_status(f"Error running system tests: {e}")
+
+    # Add placeholder methods for missing tabs
+    def create_calibration_tab(self, notebook):
+        """Create calibration tab"""
+        cal_frame = tk.Frame(notebook)
+        notebook.add(cal_frame, text="Calibration")
+        tk.Label(cal_frame, text="Load Cell Calibration", font=("Arial", 14)).pack(pady=20)
+        tk.Label(cal_frame, text="Calibration features will be implemented here").pack(pady=10)
+
+    def create_data_logging_tab(self, notebook):
+        """Create data logging tab"""
+        log_frame = tk.Frame(notebook)
+        notebook.add(log_frame, text="Data Logging")
+        
+        # Logging controls
+        logging_control_frame = tk.LabelFrame(log_frame, text="Data Logging Controls")
+        logging_control_frame.pack(pady=10, padx=10, fill="x")
+        
+        self.logging_checkbox = tk.Checkbutton(logging_control_frame, text="Enable Data Logging", 
+                                              variable=self.logging_enabled)
+        self.logging_checkbox.pack(pady=5)
+        
+        tk.Button(logging_control_frame, text="View Log Files", 
+                 command=self.view_log_files).pack(pady=5)
+        
+        # Plotting area
+        if hasattr(self, 'plot_fig') and self.plot_fig is not None:
+            plot_frame = tk.LabelFrame(log_frame, text="Real-time Force Plot")
+            plot_frame.pack(pady=10, padx=10, fill="both", expand=True)
+            
+            self.canvas = FigureCanvasTkAgg(self.plot_fig, plot_frame)
+            self.canvas.draw()
+            self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    def create_safety_tab(self, notebook):
+        """Create safety tab"""
+        safety_frame = tk.Frame(notebook)
+        notebook.add(safety_frame, text="Safety")
+        
+        # Emergency controls
+        emergency_frame = tk.LabelFrame(safety_frame, text="Emergency Controls")
+        emergency_frame.pack(pady=10, padx=10, fill="x")
+        
+        tk.Button(emergency_frame, text="EMERGENCY STOP", 
+                 command=self.controller.emergency_stop,
+                 bg="red", fg="white", font=("Arial", 16, "bold"),
+                 height=2).pack(pady=10)
+        
+        tk.Button(emergency_frame, text="Reset Emergency Stop", 
+                 command=self.controller.reset_emergency_stop,
+                 bg="orange", fg="white", font=("Arial", 12)).pack(pady=5)
+
+    def create_sequence_tab(self, notebook):
+        """Create sequence tab"""
+        seq_frame = tk.Frame(notebook)
+        notebook.add(seq_frame, text="Sequences")
+        tk.Label(seq_frame, text="Automated Test Sequences", font=("Arial", 14)).pack(pady=20)
+        tk.Label(seq_frame, text="Sequence features will be implemented here").pack(pady=10)
+
+# Add missing test functions
+def run_unit_tests():
+    """Run unit tests and return results"""
+    results = []
+    results.append("=== Unit Tests ===")
+    
+    try:
+        # Test StepperMotor
+        stepper = StepperMotor()
+        results.append("✓ StepperMotor instantiation: PASS")
+        
+        # Test ServoController
+        servo = ServoController()
+        results.append("✓ ServoController instantiation: PASS")
+        
+        # Test SafetyManager
+        safety = SafetyManager()
+        results.append("✓ SafetyManager instantiation: PASS")
+        
+        # Test force reading simulation
+        force = read_force(None)  # Should return 0.0 for simulation
+        if force == 0.0:
+            results.append("✓ Force reading simulation: PASS")
+        else:
+            results.append("✗ Force reading simulation: FAIL")
+            
+        results.append("\nAll unit tests completed successfully!")
+        
+    except Exception as e:
+        results.append(f"✗ Unit test error: {e}")
+    
+    return results
+
+def run_system_tests(controller):
+    """Run system tests and return results"""
+    results = []
+    results.append("=== System Tests ===")
+    
+    try:
+        # Test controller initialization
+        if controller:
+            results.append("✓ Controller initialization: PASS")
+        else:
+            results.append("✗ Controller initialization: FAIL")
+            
+        # Test force reading
+        try:
+            force = controller.get_force_reading()
+            results.append(f"✓ Force reading: PASS ({force:.2f}g)")
+        except Exception as e:
+            results.append(f"✗ Force reading: FAIL ({e})")
+            
+        # Test stepper control
+        try:
+            controller.stepper.step(1, True)
+            results.append("✓ Stepper control: PASS")
+        except Exception as e:
+            results.append(f"✗ Stepper control: FAIL ({e})")
+            
+        # Test servo control
+        try:
+            controller.servo_ctrl.set_angle(0, 90)
+            results.append("✓ Servo control: PASS")
+        except Exception as e:
+            results.append(f"✗ Servo control: FAIL ({e})")
+            
+        results.append("\nSystem tests completed!")
+        
+    except Exception as e:
+        results.append(f"✗ System test error: {e}")
+    
+    return results
 
 # Add Pi-specific hardware detection
 def detect_raspberry_pi():

@@ -1,19 +1,27 @@
 [Unit]
 Description=RPi Control GUI
 After=graphical-session.target network.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
 User=sigma
+Group=sigma
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PYTHONPATH=/home/sigma/projects/RPi_control
+Environment=PYTHONUNBUFFERED=1
 # Activate the virtual environment before running the script
-ExecStart=/bin/bash -c 'source /home/sigma/projects/RPi_control/venv/bin/activate && python /home/sigma/projects/RPi_control/rpi_control.py'
+ExecStart=/bin/bash -c 'source /home/sigma/projects/RPi_control/venv/bin/activate && cd /home/sigma/projects/RPi_control && python rpi_control.py'
 WorkingDirectory=/home/sigma/projects/RPi_control
-Restart=always
-RestartSec=3
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=3
+StartLimitIntervalSec=60
 StandardOutput=journal
 StandardError=journal
+KillMode=mixed
+TimeoutStopSec=10
 
 [Install]
 WantedBy=graphical-session.target

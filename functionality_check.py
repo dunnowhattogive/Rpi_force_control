@@ -350,6 +350,58 @@ print("All core classes instantiated successfully")
         except Exception as e:
             self.log_test("Autoboot Configuration", "FAIL", str(e))
 
+    def check_gui_dependencies(self):
+        """Check GUI-specific dependencies and methods"""
+        try:
+            # Test tkinter imports
+            import tkinter as tk
+            from tkinter import ttk
+            self.log_test("GUI Libraries", "PASS", "tkinter and ttk available")
+            
+            # Test matplotlib backend
+            try:
+                import matplotlib
+                matplotlib.use('TkAgg')  # Set backend for GUI
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                self.log_test("Matplotlib Backend", "PASS", "TkAgg backend available")
+            except ImportError:
+                self.log_test("Matplotlib Backend", "WARN", "TkAgg backend not available")
+            
+            # Test thread safety
+            import threading
+            self.log_test("Threading Support", "PASS", "Threading module available")
+            
+        except ImportError as e:
+            self.log_test("GUI Dependencies", "FAIL", f"Missing GUI dependency: {e}")
+
+    def test_application_methods(self):
+        """Test if main application methods are properly defined"""
+        try:
+            # Import without running
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("rpi_control", "rpi_control.py")
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                
+                # Check for required classes
+                required_classes = ['App', 'Controller', 'StepperMotor', 'ServoController']
+                for cls_name in required_classes:
+                    if hasattr(module, cls_name):
+                        self.log_test(f"Class {cls_name}", "PASS", "Class definition found")
+                    else:
+                        self.log_test(f"Class {cls_name}", "FAIL", "Class definition missing")
+                        
+                # Check for required functions
+                required_functions = ['read_force', 'detect_load_cell_port', 'main']
+                for func_name in required_functions:
+                    if hasattr(module, func_name):
+                        self.log_test(f"Function {func_name}", "PASS", "Function definition found")
+                    else:
+                        self.log_test(f"Function {func_name}", "FAIL", "Function definition missing")
+                        
+        except Exception as e:
+            self.log_test("Application Methods", "FAIL", f"Error checking methods: {e}")
+
     def run_all_checks(self):
         """Run all functionality checks"""
         print("=" * 60)
@@ -364,12 +416,14 @@ print("All core classes instantiated successfully")
         self.check_gpio_access()
         self.check_serial_ports()
         self.check_display_system()
+        self.check_gui_dependencies()  # Add new check
         self.check_audio_system()
         self.check_file_permissions()
         self.check_system_resources()
         self.check_configuration_files()
-        self.check_autoboot_configuration()  # Add autoboot check
+        self.check_autoboot_configuration()
         self.test_core_functionality()
+        self.test_application_methods()  # Add new check
         
         # Summary
         print("\n" + "=" * 60)
