@@ -26,6 +26,7 @@ except ImportError:
 try:
     import tkinter as tk
     from tkinter import ttk
+    from tkinter import messagebox  # <-- Add this import
     TKINTER_AVAILABLE = True
 except ImportError:
     TKINTER_AVAILABLE = False
@@ -907,6 +908,7 @@ class App:
         self._plot_error_logged = False
 
         self.logging_enabled = tk.BooleanVar(value=False)
+        self.step_start_time = None  # <-- Initialize here
         
         self.setup_gui()
         self.setup_plotting()
