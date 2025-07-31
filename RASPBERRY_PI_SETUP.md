@@ -261,15 +261,34 @@ The installer will:
 8. ✅ Configure auto-boot (if selected)
 9. ✅ Run functionality check
 
-### Post-Installation
+### Post-Installation Validation
 ```bash
-# Reboot to apply all changes
-sudo reboot
+# Comprehensive functionality check (recommended after installation)
+python functionality_check.py
 
-# After reboot, validate installation
-cd ~/projects/RPi_control
-./validate_system.sh
+# Quick system validation via management script
+./manage.sh validate
+
+# Run functionality tests
+./manage.sh test
 ```
+
+### Expected Functionality Check Results
+When you run `python functionality_check.py`, you should see:
+- ✅ Python 3.8+ detected
+- ✅ All required modules available  
+- ✅ Raspberry Pi hardware detected
+- ✅ GPIO libraries functional
+- ✅ Display system working
+- ✅ All core classes instantiated successfully
+- ✅ Configuration files accessible
+- ⚠️ Hardware components in simulation mode (if no physical hardware)
+
+The functionality check provides four possible outcomes:
+- **EXCELLENT**: All systems operational (no failures, no warnings)
+- **GOOD**: System functional with minor issues (warnings but no failures)
+- **FAIR**: System may work with limitations (1-2 failures)
+- **POOR**: Significant issues detected (3+ failures)
 
 ## 🔌 Step 7: Hardware Connections (Optional)
 

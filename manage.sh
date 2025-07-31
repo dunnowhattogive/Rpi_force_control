@@ -272,7 +272,7 @@ setup_service() {
     local user_id
     user_id=$(id -u)
     
-    # Create the service file with dynamic paths - improved for GUI boot
+    # Create the service file with correct project paths
     cat > "${SYSTEMD_USER_DIR}/${SERVICE_NAME}" << EOF
 [Unit]
 Description=RPi Control GUI - Load Cell and Motor Control System
@@ -412,7 +412,7 @@ setup_autostart() {
 Type=Application
 Name=RPi Control System
 Comment=Load Cell and Motor Control System
-Exec=${PROJECT_DIR}/start_gui.sh
+Exec=${PROJECT_DIR}/start.sh
 Icon=applications-system
 Hidden=false
 NoDisplay=false
@@ -421,16 +421,27 @@ StartupNotify=true
 Categories=System;Utility;
 EOF
     
-    # Create start_gui.sh script
-    cat > "${PROJECT_DIR}/start_gui.sh" << EOF
+    # Ensure start.sh exists and is executable
+    if [[ -f "${PROJECT_DIR}/start.sh" ]]; then
+        chmod +x "${PROJECT_DIR}/start.sh"
+        print_success "Desktop autostart configured using existing start.sh"
+    else
+        print_warning "start.sh not found - creating basic start script"
+        cat > "${PROJECT_DIR}/start.sh" << 'EOF'
 #!/bin/bash
-cd "${PROJECT_DIR}"
-source venv/bin/activate
-python rpi_control.py
+cd "$(dirname "$0")"
+if [[ -d "venv" ]]; then
+    source venv/bin/activate
+    python rpi_control.py
+else
+    echo "Virtual environment not found"
+    exit 1
+fi
 EOF
-    chmod +x "${PROJECT_DIR}/start_gui.sh"
+        chmod +x "${PROJECT_DIR}/start.sh"
+        print_success "Desktop autostart configured with new start.sh"
+    fi
     
-    print_success "Desktop autostart configured"
     print_status "GUI will start automatically when desktop session begins"
 }
 

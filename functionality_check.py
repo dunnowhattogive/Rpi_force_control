@@ -509,14 +509,14 @@ except Exception as e:
         self.check_gpio_access()
         self.check_serial_ports()
         self.check_display_system()
-        self.check_gui_dependencies()  # Add new check
+        self.check_gui_dependencies()
         self.check_audio_system()
         self.check_file_permissions()
         self.check_system_resources()
         self.check_configuration_files()
         self.check_autoboot_configuration()
         self.test_core_functionality()
-        self.test_application_methods()  # Add new check
+        self.test_application_methods()
         
         # Summary
         print("\n" + "=" * 60)
@@ -542,10 +542,17 @@ except Exception as e:
             print("\n❌ POOR: Significant issues detected")
             status = "POOR"
         
+        # Integration recommendations
+        print("\n🔧 INTEGRATION USAGE:")
+        print("• Called automatically during setup via setup.sh")
+        print("• Run manually: python functionality_check.py")
+        print("• Via management: ./manage.sh validate")
+        print("• Before first use: ./manage.sh test")
+        
         # Recommendations
         print("\n📋 RECOMMENDATIONS:")
         if self.failed_tests > 0:
-            print("• Install missing dependencies using install_and_run.sh")
+            print("• Install missing dependencies using setup.sh")
             print("• Check user group memberships (gpio, dialout, audio)")
             print("• Verify hardware connections and permissions")
         
@@ -555,8 +562,8 @@ except Exception as e:
         
         print("\n🔧 NEXT STEPS:")
         print("1. Review failed tests and install missing components")
-        print("2. Run the installation script: ./install_and_run.sh")
-        print("3. Test the main application: python rpi_control.py")
+        print("2. Run the installation script: ./setup.sh")
+        print("3. Test the main application: ./manage.sh run")
         print("4. Check hardware connections if using real devices")
         
         # Save detailed results
@@ -569,9 +576,19 @@ except Exception as e:
                         'passed': self.passed_tests,
                         'failed': self.failed_tests,
                         'warnings': self.warnings,
-                        'total': len(self.test_results)
+                        'total': len(self.test_results),
+                        'integration_context': 'standalone_execution'
                     },
-                    'tests': self.test_results
+                    'tests': self.test_results,
+                    'usage_context': {
+                        'called_by': 'direct_execution',
+                        'integration_points': [
+                            'setup.sh (during installation)',
+                            'manage.sh validate',
+                            'manage.sh test',
+                            'manual execution'
+                        ]
+                    }
                 }, f, indent=2)
             print(f"\n📄 Detailed results saved to: {results_file}")
         except Exception as e:
@@ -579,7 +596,35 @@ except Exception as e:
         
         return status
 
+def run_quick_check():
+    """Quick functionality check for integration scripts"""
+    checker = FunctionalityChecker()
+    
+    # Run only essential checks for quick validation
+    checker.check_python_environment()
+    checker.check_required_modules()
+    checker.check_raspberry_pi_detection()
+    checker.check_display_system()
+    checker.test_core_functionality()
+    
+    return {
+        'status': 'PASS' if checker.failed_tests == 0 else 'FAIL',
+        'passed': checker.passed_tests,
+        'failed': checker.failed_tests,
+        'warnings': checker.warnings
+    }
+
 if __name__ == "__main__":
+    import sys
+    
+    # Check for quick mode argument
+    if len(sys.argv) > 1 and sys.argv[1] == '--quick':
+        print("Running quick functionality check...")
+        result = run_quick_check()
+        print(f"Quick check result: {result['status']}")
+        sys.exit(0 if result['status'] == 'PASS' else 1)
+    
+    # Run full functionality check
     checker = FunctionalityChecker()
     result = checker.run_all_checks()
     

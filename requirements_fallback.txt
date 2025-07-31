@@ -1,10 +1,10 @@
-# Minimal requirements for basic functionality
-# Use when main requirements.txt fails
-
-# Essential packages only
-pyserial>=3.4
-gpiozero>=1.6.2
-psutil>=5.8.0
+# DEPRECATED: This file is obsolete
+# All requirements have been consolidated into requirements.txt
+# 
+# To remove this file safely:
+# rm requirements_fallback.txt
+#
+# Use only requirements.txt going forward
 colorama>=0.4.4
 
 # Scientific packages - minimal versions

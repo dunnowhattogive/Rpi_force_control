@@ -55,7 +55,7 @@ This project is specifically designed and optimized for Raspberry Pi with the fo
 - **Safety Management**: Force limits, alarms, emergency stops, and audio alerts
 - **Configuration Management**: JSON-based settings with backup and restore
 - **Sequence Control**: Automated test sequences with step-by-step execution
-- **Comprehensive Testing**: Built-in unit tests, system tests, and functionality checks
+- **Comprehensive Testing**: Built-in unit tests, system tests, and comprehensive functionality validation
 - **Calibration System**: Advanced load cell calibration with multiple weight points
 
 ### 🛡️ Safety Features
@@ -169,7 +169,7 @@ The system now uses only two main scripts:
 
 ### **Configuration Files**
 - **`rpicontrol.service`** - Systemd service definition
-- **`requirements.txt`** - Python package dependencies
+- **`requirements.txt`** - Consolidated Python package dependencies
 - **`system_config.json`** - Application configuration (created during setup)
 
 ## 📁 File Structure
@@ -181,7 +181,7 @@ RPi_control/
 ├── rpi_control.py         # Main application
 ├── functionality_check.py # System validation
 ├── rpicontrol.service     # Service definition
-├── requirements.txt       # Python dependencies
+├── requirements.txt       # Consolidated Python dependencies
 ├── start_gui.sh          # Compatibility redirect
 ├── README.md             # This file
 ├── RASPBERRY_PI_SETUP.md # Pi-specific setup guide
@@ -199,6 +199,9 @@ RPi_control/
                          # 2. Fix existing installation
                          # 3. Virtual environment only
                          # 4. Service configuration only
+                         
+# Note: If multiple requirements files exist, the setup script
+# will automatically consolidate them into a single requirements.txt
 ```
 
 ### Management Script (`./manage.sh`)
@@ -228,6 +231,18 @@ RPi_control/
 ./manage.sh backup       # Backup config
 ./manage.sh restore      # Restore config
 ./manage.sh clean        # Clean temp files
+```
+
+### **Functionality Validation**
+```bash
+# Run comprehensive functionality check
+python functionality_check.py
+
+# Quick validation via management script
+./manage.sh validate
+
+# Check specific components
+./manage.sh test
 ```
 
 ---

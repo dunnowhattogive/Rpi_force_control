@@ -1607,7 +1607,21 @@ class App:
     def run_system_tests_gui(self):
         """Run system tests and display in GUI"""
         try:
-            results = run_system_tests(self.controller)  # Fixed: pass controller parameter
+            # Run both internal system tests and functionality check
+            results = run_system_tests(self.controller)
+            
+            # Also run functionality check integration
+            try:
+                import subprocess
+                func_result = subprocess.run([sys.executable, 'functionality_check.py', '--quick'], 
+                                           capture_output=True, text=True, timeout=30)
+                if func_result.returncode == 0:
+                    results.append("✅ Functionality validation: PASS")
+                else:
+                    results.append("⚠️ Functionality validation: See details in functionality_check.py")
+            except Exception as e:
+                results.append(f"⚠️ Functionality check integration: {e}")
+            
             self.test_results_text.config(state=tk.NORMAL)
             self.test_results_text.delete(1.0, tk.END)
             self.test_results_text.insert(tk.END, "\n".join(results))
