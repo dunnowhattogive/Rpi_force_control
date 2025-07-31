@@ -52,7 +52,7 @@ except ImportError:
 # GPIO support with robust hardware detection
 try:
     from gpiozero import OutputDevice, PWMOutputDevice
-    import gpiozero.devices
+    import gpiozero
     from gpiozero.pins.mock import MockFactory
     from gpiozero.exc import GPIOZeroError
     # Add import for RPiGPIOFactory
@@ -72,20 +72,20 @@ try:
 
     # Set pin factory to RPiGPIOFactory if on Raspberry Pi and not already set
     if PI_HARDWARE and RPiGPIOFactory is not None:
-        if not isinstance(gpiozero.devices.pin_factory, RPiGPIOFactory):
+        if not isinstance(gpiozero.Device.pin_factory, RPiGPIOFactory):
             try:
-                gpiozero.devices.pin_factory = RPiGPIOFactory()
+                gpiozero.Device.pin_factory = RPiGPIOFactory()
                 print("Set gpiozero pin factory to RPiGPIOFactory")
             except Exception as e:
                 print(f"Failed to set RPiGPIOFactory: {e}")
 
     # Print out the current pin factory for diagnostics
-    print(f"GPIOZero pin factory: {type(gpiozero.devices.pin_factory).__name__}")
+    print(f"GPIOZero pin factory: {type(gpiozero.Device.pin_factory).__name__}")
 
     # Try to access a real GPIO pin to verify hardware access
     GPIO_HARDWARE_WORKING = False
     try:
-        current_factory = gpiozero.devices.pin_factory
+        current_factory = gpiozero.Device.pin_factory
         if current_factory is not None and not isinstance(current_factory, MockFactory):
             test_pin = OutputDevice(21, active_high=True, initial_value=False)
             test_pin.close()
@@ -2634,7 +2634,6 @@ class App:
             self.start_logging()
         else:
             self.stop_logging()
-
 # Remove the following erroneous code at the end of the file:
 #        traceback.print_exc()
 #    finally:
