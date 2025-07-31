@@ -1,0 +1,18 @@
+# Minimal requirements for basic functionality
+# Use when main requirements.txt fails
+
+# Essential packages only
+pyserial>=3.4
+gpiozero>=1.6.2
+psutil>=5.8.0
+colorama>=0.4.4
+
+# Scientific packages - minimal versions
+numpy>=1.19.0
+matplotlib>=3.3.0
+
+# Audio (optional)
+pygame>=2.0.0
+
+# Note: Install tkinter via system package manager
+# sudo apt install python3-tkinter

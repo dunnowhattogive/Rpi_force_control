@@ -371,18 +371,24 @@ nano ~/projects/RPi_control/system_config.json
 ```bash
 cd ~/projects/RPi_control
 
+# Consolidate any duplicate service files
+./manage.sh consolidate
+
 # Enable auto-start on boot
-./manage_service.sh enable
+./manage.sh enable
 
 # Disable auto-start
-./manage_service.sh disable
+./manage.sh disable
 
 # Start/stop manually
-./manage_service.sh start
-./manage_service.sh stop
+./manage.sh start
+./manage.sh stop
 
 # View live logs
-./manage_service.sh logs
+./manage.sh logs
+
+# Clean up old files and duplicates
+./manage.sh clean
 ```
 
 ### Desktop Integration
@@ -422,6 +428,9 @@ sudo usermod -a -G gpio,dialout,audio $USER
 
 ### Service Won't Start
 ```bash
+# Consolidate service files first
+./manage.sh consolidate
+
 # Check service file
 cat ~/.config/systemd/user/rpicontrol.service
 

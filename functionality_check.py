@@ -152,8 +152,6 @@ class FunctionalityChecker:
     def check_display_system(self):
         """Check display system and GUI capabilities"""
         try:
-            import tkinter as tk
-            
             # Check if DISPLAY environment variable is set
             display = os.environ.get('DISPLAY')
             if display:
@@ -165,19 +163,62 @@ class FunctionalityChecker:
                 else:
                     self.log_test("Display Environment", "WARN", "No display environment detected")
             
-            # Test basic tkinter functionality
+            # Test tkinter with multiple methods
+            tkinter_available = False
+            
+            # Method 1: Try standard import
             try:
-                root = tk.Tk()
-                root.withdraw()  # Hide the window
-                self.log_test("Tkinter GUI", "PASS", "Tkinter window creation successful")
-                root.destroy()
-            except Exception as e:
-                self.log_test("Tkinter GUI", "FAIL", f"Tkinter error: {e}")
+                import tkinter as tk
+                tkinter_available = True
+                self.log_test("Tkinter Import", "PASS", "Standard tkinter import successful")
+            except ImportError:
+                self.log_test("Tkinter Import", "FAIL", "Standard tkinter import failed")
+            
+            # Method 2: Try alternative import (older Python versions)
+            if not tkinter_available:
+                try:
+                    import Tkinter as tk
+                    tkinter_available = True
+                    self.log_test("Tkinter Import", "PASS", "Legacy Tkinter import successful")
+                except ImportError:
+                    self.log_test("Tkinter Import", "FAIL", "Legacy Tkinter import failed")
+            
+            # Method 3: Test basic GUI creation if tkinter is available
+            if tkinter_available:
+                try:
+                    root = tk.Tk()
+                    root.withdraw()  # Hide the window
+                    self.log_test("Tkinter GUI", "PASS", "Tkinter window creation successful")
+                    root.destroy()
+                except Exception as e:
+                    self.log_test("Tkinter GUI", "FAIL", f"Tkinter window error: {e}")
+            else:
+                self.log_test("Tkinter GUI", "FAIL", "Tkinter not available for GUI creation")
                 
-        except ImportError:
-            self.log_test("Tkinter Library", "FAIL", "tkinter not available")
+            # Check for alternative GUI frameworks if tkinter fails
+            if not tkinter_available:
+                self.check_alternative_gui_frameworks()
+                
         except Exception as e:
             self.log_test("Display System", "FAIL", str(e))
+
+    def check_alternative_gui_frameworks(self):
+        """Check for alternative GUI frameworks if tkinter is not available"""
+        alternatives = [
+            ('PyQt5', 'PyQt5.QtWidgets'),
+            ('PyQt6', 'PyQt6.QtWidgets'),
+            ('PySide2', 'PySide2.QtWidgets'),
+            ('PySide6', 'PySide6.QtWidgets'),
+            ('kivy', 'kivy.app'),
+            ('wx', 'wx')
+        ]
+        
+        for name, module in alternatives:
+            try:
+                importlib.import_module(module)
+                self.log_test(f"Alternative GUI: {name}", "PASS", f"{name} available as tkinter alternative")
+            except ImportError:
+                self.log_test(f"Alternative GUI: {name}", "WARN", f"{name} not available")
 
     def check_audio_system(self):
         """Check audio system for alerts"""
@@ -321,15 +362,15 @@ print("All core classes instantiated successfully")
             else:
                 self.log_test("GUI Autostart", "WARN", "Desktop autostart not configured")
             
-            # Check systemd service
+            # Check systemd service - fix service name
             try:
-                result = subprocess.run(['systemctl', '--user', 'is-enabled', 'rpi-control.service'],
+                result = subprocess.run(['systemctl', '--user', 'is-enabled', 'rpicontrol.service'],
                                       capture_output=True, text=True)
                 if result.returncode == 0:
                     self.log_test("Systemd Service", "PASS", "Service enabled for auto-start")
                     
                     # Check if service is running
-                    result = subprocess.run(['systemctl', '--user', 'is-active', 'rpi-control.service'],
+                    result = subprocess.run(['systemctl', '--user', 'is-active', 'rpicontrol.service'],
                                           capture_output=True, text=True)
                     if result.returncode == 0:
                         self.log_test("Service Status", "PASS", "Service currently running")
@@ -377,28 +418,80 @@ print("All core classes instantiated successfully")
     def test_application_methods(self):
         """Test if main application methods are properly defined"""
         try:
-            # Import without running
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("rpi_control", "rpi_control.py")
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
+            # Import without running - use a more robust approach
+            test_code = '''
+import sys
+import os
+sys.path.insert(0, ".")
+
+try:
+    # Import the main script as a module
+    import rpi_control
+    
+    # Check for required classes
+    required_classes = ["App", "Controller", "StepperMotor", "ServoController"]
+    missing_classes = []
+    for cls_name in required_classes:
+        if hasattr(rpi_control, cls_name):
+            print(f"✅ Class {cls_name}: FOUND")
+        else:
+            print(f"❌ Class {cls_name}: MISSING")
+            missing_classes.append(cls_name)
+    
+    # Check for required functions
+    required_functions = ["read_force", "detect_load_cell_port", "main"]
+    missing_functions = []
+    for func_name in required_functions:
+        if hasattr(rpi_control, func_name):
+            print(f"✅ Function {func_name}: FOUND")
+        else:
+            print(f"❌ Function {func_name}: MISSING")
+            missing_functions.append(func_name)
+    
+    if missing_classes or missing_functions:
+        sys.exit(1)
+    else:
+        print("✅ All required classes and functions found")
+        sys.exit(0)
+        
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    sys.exit(1)
+except Exception as e:
+    print(f"❌ Unexpected error: {e}")
+    sys.exit(1)
+'''
+            
+            result = subprocess.run([sys.executable, '-c', test_code], 
+                                  capture_output=True, text=True, timeout=15, 
+                                  cwd=os.getcwd())
+            
+            if result.returncode == 0:
+                self.log_test("Application Methods", "PASS", "All required classes and functions found")
+                # Parse the detailed output
+                for line in result.stdout.strip().split('\n'):
+                    if line.startswith('✅'):
+                        parts = line.split(': ')
+                        if len(parts) >= 2:
+                            item_name = parts[0].replace('✅ ', '')
+                            status = parts[1]
+                            self.log_test(item_name, "PASS", status)
+            else:
+                self.log_test("Application Methods", "FAIL", "Some classes/functions missing")
+                # Parse the error output
+                for line in result.stdout.strip().split('\n'):
+                    if line.startswith('❌'):
+                        parts = line.split(': ')
+                        if len(parts) >= 2:
+                            item_name = parts[0].replace('❌ ', '')
+                            status = parts[1]
+                            self.log_test(item_name, "FAIL", status)
                 
-                # Check for required classes
-                required_classes = ['App', 'Controller', 'StepperMotor', 'ServoController']
-                for cls_name in required_classes:
-                    if hasattr(module, cls_name):
-                        self.log_test(f"Class {cls_name}", "PASS", "Class definition found")
-                    else:
-                        self.log_test(f"Class {cls_name}", "FAIL", "Class definition missing")
+                if result.stderr:
+                    self.log_test("Import Error", "FAIL", result.stderr.strip())
                         
-                # Check for required functions
-                required_functions = ['read_force', 'detect_load_cell_port', 'main']
-                for func_name in required_functions:
-                    if hasattr(module, func_name):
-                        self.log_test(f"Function {func_name}", "PASS", "Function definition found")
-                    else:
-                        self.log_test(f"Function {func_name}", "FAIL", "Function definition missing")
-                        
+        except subprocess.TimeoutExpired:
+            self.log_test("Application Methods", "FAIL", "Test timed out - possible import issues")
         except Exception as e:
             self.log_test("Application Methods", "FAIL", f"Error checking methods: {e}")
 

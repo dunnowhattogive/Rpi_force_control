@@ -1,27 +1,28 @@
 [Unit]
-Description=RPi Control GUI
+Description=RPi Control GUI - Load Cell and Motor Control System
 After=graphical-session.target network.target
 Wants=graphical-session.target
 
 [Service]
 Type=simple
-User=sigma
-Group=sigma
+User=%i
 Environment=DISPLAY=:0
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-Environment=PYTHONPATH=/home/sigma/projects/RPi_control
+Environment=XDG_RUNTIME_DIR=/run/user/%i
+Environment=PYTHONPATH=%h/projects/Rpi_force_control
 Environment=PYTHONUNBUFFERED=1
-# Activate the virtual environment before running the script
-ExecStart=/bin/bash -c 'source /home/sigma/projects/RPi_control/venv/bin/activate && cd /home/sigma/projects/RPi_control && python rpi_control.py'
-WorkingDirectory=/home/sigma/projects/RPi_control
+Environment=QT_X11_NO_MITSHM=1
+# Wait for display to be ready and activate virtual environment
+ExecStart=/bin/bash -c 'cd %h/projects/Rpi_force_control && source venv/bin/activate && python rpi_control.py'
+WorkingDirectory=%h/projects/Rpi_force_control
 Restart=on-failure
-RestartSec=5
-StartLimitBurst=3
-StartLimitIntervalSec=60
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=120
 StandardOutput=journal
 StandardError=journal
 KillMode=mixed
-TimeoutStopSec=10
+TimeoutStartSec=30
+TimeoutStopSec=15
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target graphical-session.target
