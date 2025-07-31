@@ -2584,3 +2584,46 @@ class App:
             self.start_logging()
         else:
             self.stop_logging()
+
+# Add main execution block
+def main():
+    """Main application entry point"""
+    print("Starting RPi Force Control Application...")
+    
+    try:
+        # Create the main window
+        print("Creating Tkinter root window...")
+        root = tk.Tk()
+        
+        # Create and run the application
+        print("Initializing application...")
+        app = App(root)
+        
+        print("GUI initialized successfully. Starting main loop...")
+        # Start the GUI main loop
+        root.mainloop()
+        
+    except KeyboardInterrupt:
+        print("Application interrupted by user (Ctrl+C)")
+    except ImportError as e:
+        print(f"Import error: {e}")
+        print("Make sure all required packages are installed:")
+        print("pip install tkinter numpy pygame matplotlib")
+    except Exception as e:
+        print(f"Application error: {e}")
+        traceback.print_exc()
+    finally:
+        # Cleanup
+        try:
+            if 'app' in locals() and hasattr(app, 'controller'):
+                print("Cleaning up...")
+                app.controller.cleanup()
+        except:
+            pass
+        print("Application shutdown complete.")
+
+if __name__ == "__main__":
+    print("RPi Force Control - Direct execution detected")
+    main()
+else:
+    print(f"RPi Force Control - Module imported as {__name__}")
