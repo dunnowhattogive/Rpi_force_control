@@ -49,13 +49,39 @@ try:
 except ImportError:
     SYSLOG_AVAILABLE = False
 
-# GPIO support with fallback
+# GPIO support with robust hardware detection
 try:
     from gpiozero import OutputDevice, PWMOutputDevice
-    GPIO_AVAILABLE = True
+    import gpiozero.devices
+    from gpiozero.pins.mock import MockFactory
+    from gpiozero.exc import GPIOZeroError
+    # Detect Raspberry Pi hardware
+    PI_HARDWARE = False
+    try:
+        with open('/proc/device-tree/model', 'r') as f:
+            model = f.read()
+            PI_HARDWARE = 'Raspberry Pi' in model
+    except Exception:
+        PI_HARDWARE = False
+    # Try to access a real GPIO pin to verify hardware access
+    GPIO_HARDWARE_WORKING = False
+    try:
+        current_factory = gpiozero.devices.pin_factory
+        if current_factory is not None and not isinstance(current_factory, MockFactory):
+            test_pin = OutputDevice(21, active_high=True, initial_value=False)
+            test_pin.close()
+            GPIO_HARDWARE_WORKING = True
+    except Exception:
+        GPIO_HARDWARE_WORKING = False
+    # Set GPIO_AVAILABLE based on hardware and import success
+    GPIO_AVAILABLE = GPIO_HARDWARE_WORKING
+    if not GPIO_HARDWARE_WORKING:
+        print("Warning: GPIO hardware not accessible - running in simulation mode")
 except ImportError:
     print("Warning: gpiozero not available - running in simulation mode")
     GPIO_AVAILABLE = False
+    PI_HARDWARE = False
+    GPIO_HARDWARE_WORKING = False
     # Create dummy classes for development/testing
     class OutputDevice:
         def __init__(self, pin, **kwargs):
@@ -104,6 +130,7 @@ class StepperMotor:
 
     def __init__(self):
         try:
+            # Use GPIO_AVAILABLE for hardware mode
             if GPIO_AVAILABLE:
                 self.dir = OutputDevice(self.DIR_PIN, active_high=True, initial_value=False)
                 self.step_pin = OutputDevice(self.STEP_PIN, active_high=True, initial_value=False)
@@ -2265,7 +2292,7 @@ class App:
             if not self._force_error_logged:
                 print(f"Error updating force display: {e}")
                 self._force_error_logged = True
-                
+
         # Schedule next update if not shutting down
         if not self.shutting_down:
             self.force_update_id = self.root.after(100, self.update_force_and_thresh)
@@ -2585,45 +2612,23 @@ class App:
         else:
             self.stop_logging()
 
-# Add main execution block
-def main():
-    """Main application entry point"""
-    print("Starting RPi Force Control Application...")
-    
-    try:
-        # Create the main window
-        print("Creating Tkinter root window...")
-        root = tk.Tk()
-        
-        # Create and run the application
-        print("Initializing application...")
-        app = App(root)
-        
-        print("GUI initialized successfully. Starting main loop...")
-        # Start the GUI main loop
-        root.mainloop()
-        
-    except KeyboardInterrupt:
-        print("Application interrupted by user (Ctrl+C)")
-    except ImportError as e:
-        print(f"Import error: {e}")
-        print("Make sure all required packages are installed:")
-        print("pip install tkinter numpy pygame matplotlib")
-    except Exception as e:
-        print(f"Application error: {e}")
-        traceback.print_exc()
-    finally:
-        # Cleanup
-        try:
-            if 'app' in locals() and hasattr(app, 'controller'):
-                print("Cleaning up...")
-                app.controller.cleanup()
-        except:
-            pass
-        print("Application shutdown complete.")
+# Remove the following erroneous code at the end of the file:
+#        traceback.print_exc()
+#    finally:
+#        # Cleanup
+#        try:
+#            if 'app' in locals() and hasattr(app, 'controller'):
+#                print("Cleaning up...")
+#                app.controller.cleanup()
+#        except:
+#            pass
+#        print("Application shutdown complete.")
 
+# Add a proper main entry point for Tkinter app
 if __name__ == "__main__":
     print("RPi Force Control - Direct execution detected")
-    main()
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()
 else:
     print(f"RPi Force Control - Module imported as {__name__}")
