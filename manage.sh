@@ -321,6 +321,20 @@ complete_setup() {
     
     # Temporarily disable exit on error for individual steps
     set +e
+
+    # Step 0: Add user to gpio group
+    print_status "Step 0/6: Adding user to gpio group..."
+    if groups "${CURRENT_USER}" | grep -qw gpio; then
+        print_success "User ${CURRENT_USER} is already in gpio group"
+    else
+        if sudo usermod -aG gpio "${CURRENT_USER}"; then
+            print_success "Added ${CURRENT_USER} to gpio group"
+            print_warning "You must log out and log back in (or reboot) for group changes to take effect"
+        else
+            print_error "Failed to add ${CURRENT_USER} to gpio group"
+        fi
+    fi
+    echo ""
     
     # Step 1: Setup Python virtual environment
     print_status "Step 1/6: Setting up Python virtual environment..."

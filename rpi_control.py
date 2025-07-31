@@ -55,6 +55,12 @@ try:
     import gpiozero.devices
     from gpiozero.pins.mock import MockFactory
     from gpiozero.exc import GPIOZeroError
+    # Add import for RPiGPIOFactory
+    try:
+        from gpiozero.pins.rpigpio import RPiGPIOFactory
+    except ImportError:
+        RPiGPIOFactory = None
+
     # Detect Raspberry Pi hardware
     PI_HARDWARE = False
     try:
@@ -63,6 +69,19 @@ try:
             PI_HARDWARE = 'Raspberry Pi' in model
     except Exception:
         PI_HARDWARE = False
+
+    # Set pin factory to RPiGPIOFactory if on Raspberry Pi and not already set
+    if PI_HARDWARE and RPiGPIOFactory is not None:
+        if not isinstance(gpiozero.devices.pin_factory, RPiGPIOFactory):
+            try:
+                gpiozero.devices.pin_factory = RPiGPIOFactory()
+                print("Set gpiozero pin factory to RPiGPIOFactory")
+            except Exception as e:
+                print(f"Failed to set RPiGPIOFactory: {e}")
+
+    # Print out the current pin factory for diagnostics
+    print(f"GPIOZero pin factory: {type(gpiozero.devices.pin_factory).__name__}")
+
     # Try to access a real GPIO pin to verify hardware access
     GPIO_HARDWARE_WORKING = False
     try:
@@ -71,8 +90,12 @@ try:
             test_pin = OutputDevice(21, active_high=True, initial_value=False)
             test_pin.close()
             GPIO_HARDWARE_WORKING = True
-    except Exception:
+        else:
+            print("GPIOZero is using MockFactory or unknown factory.")
+    except Exception as e:
+        print(f"GPIO hardware test failed: {e}")
         GPIO_HARDWARE_WORKING = False
+
     # Set GPIO_AVAILABLE based on hardware and import success
     GPIO_AVAILABLE = GPIO_HARDWARE_WORKING
     if not GPIO_HARDWARE_WORKING:
