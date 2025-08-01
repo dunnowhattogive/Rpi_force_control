@@ -3,7 +3,7 @@
 
 # === ESSENTIAL PACKAGES ===
 # Hardware control and communication
-gpiozero>=1.6.2
+gpiod>=2.0.0
 pyserial>=3.4
 
 # System monitoring and utilities

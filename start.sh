@@ -56,7 +56,7 @@ fi
 
 # Check if required packages are installed
 print_status "Checking dependencies..."
-if ! python -c "import tkinter, serial, numpy" 2>/dev/null; then
+if ! python -c "import tkinter, serial, numpy, gpiod" 2>/dev/null; then
     print_warning "⚠️  Some dependencies missing - attempting to install..."
     if pip install -r requirements.txt; then
         print_success "✅ Dependencies installed"

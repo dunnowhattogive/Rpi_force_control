@@ -218,7 +218,7 @@ debug_service() {
 }
 
 debug_gpio() {
-    print_status "Debugging GPIO hardware and GPIOZero issues..."
+    print_status "Debugging GPIO hardware and gpiod issues..."
     echo ""
 
     # Check if running on Raspberry Pi hardware
@@ -256,19 +256,15 @@ debug_gpio() {
         fi
     fi
 
-    # Check if gpiozero is installed in venv
+    # Check if gpiod is installed in venv
     if [[ -d "venv" ]]; then
         source venv/bin/activate
-        if python -c "import gpiozero" 2>/dev/null; then
-            print_success "gpiozero is installed in the virtual environment"
+        if python -c "import gpiod" 2>/dev/null; then
+            print_success "gpiod is installed in the virtual environment"
         else
-            print_error "gpiozero is NOT installed in the virtual environment"
+            print_error "gpiod is NOT installed in the virtual environment"
             print_status "Run: ./manage.sh install-deps"
         fi
-
-        # Check pin factory
-        print_status "Checking GPIOZero pin factory..."
-        python -c "from gpiozero import Device; print('Pin factory:', type(Device.pin_factory).__name__)" 2>/dev/null || print_error "Could not import gpiozero or check pin factory"
         deactivate 2>/dev/null || true
     else
         print_error "Virtual environment not found"
@@ -276,19 +272,18 @@ debug_gpio() {
 
     # Check for running as root
     if [[ "$EUID" -eq 0 ]]; then
-        print_warning "Script is running as root. GPIOZero may behave differently."
+        print_warning "Script is running as root. GPIO access may behave differently."
     fi
 
-    # Suggest reboot if group membership was just changed
     print_status "If you recently added your user to the gpio group, you must log out and log back in or reboot."
     echo ""
-    print_status "If you see 'GPIOZero is using MockFactory', it usually means:"
+    print_status "If you see GPIO errors, it usually means:"
     echo " - Not running on a Raspberry Pi"
     echo " - User lacks permission to access GPIO hardware"
     echo " - /dev/gpiomem or /dev/mem not accessible"
     echo " - Running in a virtualized or emulated environment"
     echo ""
-    print_status "For more info: https://gpiozero.readthedocs.io/en/stable/api_pins.html#pin-factory-selection"
+    print_status "For more info: https://libgpiod.readthedocs.io/"
 }
 
 run_manual() {
@@ -1071,3 +1066,4 @@ case "${1:-help}" in
         exit 1
         ;;
 esac
+

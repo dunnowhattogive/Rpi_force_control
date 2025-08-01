@@ -15,7 +15,6 @@ import numpy as np
 from collections import deque
 
 os.environ["GPIOZERO_PIN_FACTORY"] = "native"
-# ...existing code...
 # Audio support with fallback
 try:
     import pygame
@@ -54,57 +53,82 @@ except ImportError:
 
 # GPIO support with robust hardware detection
 try:
-    from gpiozero import OutputDevice, PWMOutputDevice
-    import gpiozero
-    from gpiozero.pins.mock import MockFactory
-    from gpiozero.exc import GPIOZeroError
-    # Add import for RPiGPIOFactory
-    try:
-        from gpiozero.pins.rpigpio import RPiGPIOFactory
-    except ImportError:
-        RPiGPIOFactory = None
+    import gpiod
+    # Simple OutputDevice using gpiod
+    class OutputDevice:
+        def __init__(self, pin, active_high=True, initial_value=False):
+            self.pin = pin
+            self.active_high = active_high
+            self.chip = gpiod.Chip('gpiochip4')
+            self.line = self.chip.get_line(pin)
+            self.line.request(consumer="rpi_control", type=gpiod.LINE_REQ_DIR_OUT, default_vals=[initial_value if active_high else not initial_value])
+            self.value = initial_value
 
-    # Detect Raspberry Pi hardware
-    PI_HARDWARE = False
-    try:
-        with open('/proc/device-tree/model', 'r') as f:
-            model = f.read()
-            PI_HARDWARE = 'Raspberry Pi' in model
-    except Exception:
-        PI_HARDWARE = False
+        def on(self):
+            self.value = True
+            self.line.set_value(1 if self.active_high else 0)
 
-    # Set pin factory to RPiGPIOFactory if on Raspberry Pi and not already set
-    if PI_HARDWARE and RPiGPIOFactory is not None:
-        if not isinstance(gpiozero.Device.pin_factory, RPiGPIOFactory):
+        def off(self):
+            self.value = False
+            self.line.set_value(0 if self.active_high else 1)
+
+        def close(self):
             try:
-                gpiozero.Device.pin_factory = RPiGPIOFactory()
-                print("Set gpiozero pin factory to RPiGPIOFactory")
-            except Exception as e:
-                print(f"Failed to set RPiGPIOFactory: {e}")
+                self.line.release()
+                self.chip.close()
+            except Exception:
+                pass
 
-    # Print out the current pin factory for diagnostics
-    print(f"GPIOZero pin factory: {type(gpiozero.Device.pin_factory).__name__}")
+    # Simple PWMOutputDevice using software PWM (very basic, not for production)
+    import threading
 
-    # Try to access a real GPIO pin to verify hardware access
-    GPIO_HARDWARE_WORKING = False
-    try:
-        current_factory = gpiozero.Device.pin_factory
-        if current_factory is not None and not isinstance(current_factory, MockFactory):
-            test_pin = OutputDevice(21, active_high=True, initial_value=False)
-            test_pin.close()
-            GPIO_HARDWARE_WORKING = True
-        else:
-            print("GPIOZero is using MockFactory or unknown factory.")
-    except Exception as e:
-        print(f"GPIO hardware test failed: {e}")
-        GPIO_HARDWARE_WORKING = False
+    class PWMOutputDevice:
+        def __init__(self, pin, frequency=50):
+            self.pin = pin
+            self.frequency = frequency
+            self.duty_cycle = 0.0
+            self.chip = gpiod.Chip('gpiochip4')
+            self.line = self.chip.get_line(pin)
+            self.line.request(consumer="rpi_control_pwm", type=gpiod.LINE_REQ_DIR_OUT, default_vals=[0])
+            self._running = True
+            self._thread = threading.Thread(target=self._pwm_loop, daemon=True)
+            self._thread.start()
 
-    # Set GPIO_AVAILABLE based on hardware and import success
-    GPIO_AVAILABLE = GPIO_HARDWARE_WORKING
-    if not GPIO_HARDWARE_WORKING:
-        print("Warning: GPIO hardware not accessible - running in simulation mode")
+        @property
+        def value(self):
+            return self.duty_cycle
+
+        @value.setter
+        def value(self, v):
+            self.duty_cycle = max(0.0, min(1.0, float(v)))
+
+        def _pwm_loop(self):
+            period = 1.0 / self.frequency
+            while self._running:
+                high_time = period * self.duty_cycle
+                low_time = period - high_time
+                if high_time > 0:
+                    self.line.set_value(1)
+                    time.sleep(high_time)
+                if low_time > 0:
+                    self.line.set_value(0)
+                    time.sleep(low_time)
+
+        def close(self):
+            self._running = False
+            try:
+                self.line.set_value(0)
+                self.line.release()
+                self.chip.close()
+            except Exception:
+                pass
+
+    GPIO_AVAILABLE = True
+    PI_HARDWARE = True
+    GPIO_HARDWARE_WORKING = True
+    print("gpiod GPIO available")
 except ImportError:
-    print("Warning: gpiozero not available - running in simulation mode")
+    print("Warning: gpiod not available - running in simulation mode")
     GPIO_AVAILABLE = False
     PI_HARDWARE = False
     GPIO_HARDWARE_WORKING = False
@@ -116,7 +140,7 @@ except ImportError:
         def on(self): pass
         def off(self): pass
         def close(self): pass
-    
+
     class PWMOutputDevice:
         def __init__(self, pin, **kwargs):
             self.pin = pin
@@ -898,7 +922,8 @@ class App:
         
         self.controller = Controller()
         
-        self.servo_control_enabled = tk.BooleanVar(value=True)
+        # --- Servo and stepper controls: all servos disabled at startup ---
+        self.servo_control_enabled = tk.BooleanVar(value=False)
         self.stepper_control_enabled = tk.BooleanVar(value=True)
         self.auto_stepper_mode = tk.BooleanVar(value=False)
 
@@ -911,7 +936,12 @@ class App:
 
         self.logging_enabled = tk.BooleanVar(value=False)
         self.step_start_time = None  # <-- Initialize here
-        
+
+        # --- Individual servo enable checkboxes: all disabled at startup ---
+        self.servo1_enabled = tk.BooleanVar(value=False)
+        self.servo2_enabled = tk.BooleanVar(value=False)
+        self.servo3_enabled = tk.BooleanVar(value=False)
+
         self.setup_gui()
         self.setup_plotting()
         self.start_background_threads()
@@ -1218,9 +1248,6 @@ class App:
         # Individual servo enable checkboxes
         servo_enable_frame = tk.LabelFrame(settings_frame, text="Enable Individual Servos")
         servo_enable_frame.pack(padx=10, pady=5, fill="x")
-        self.servo1_enabled = tk.BooleanVar(value=True)
-        self.servo2_enabled = tk.BooleanVar(value=True)
-        self.servo3_enabled = tk.BooleanVar(value=True)
         tk.Checkbutton(servo_enable_frame, text="Servo 1", variable=self.servo1_enabled, command=self.update_individual_servos).pack(side=tk.LEFT, padx=5)
         tk.Checkbutton(servo_enable_frame, text="Servo 2", variable=self.servo2_enabled, command=self.update_individual_servos).pack(side=tk.LEFT, padx=5)
         tk.Checkbutton(servo_enable_frame, text="Servo 3", variable=self.servo3_enabled, command=self.update_individual_servos).pack(side=tk.LEFT, padx=5)

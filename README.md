@@ -11,7 +11,7 @@ This project is specifically designed and optimized for Raspberry Pi with the fo
 ### 🔧 Hardware Compatibility
 - **Raspberry Pi Models**: Pi 5 (8GB recommended), Pi 4B, Pi 3B+, Pi 3B, Pi 2B, Pi Zero 2W (GPIO-enabled models)
 - **Raspberry Pi OS**: Bookworm, Bullseye, Buster, and newer versions
-- **GPIO Libraries**: Native gpiozero integration with fallback support
+- **GPIO Libraries**: Native `gpiod` integration (replaces gpiozero)
 - **Serial Interfaces**: USB, UART, and GPIO serial communication
 - **Display Support**: HDMI, DSI touchscreens, headless operation
 - **Architecture**: ARM64 and ARM32 support
@@ -177,11 +177,11 @@ The system now uses only two main scripts:
 ```
 RPi_control/
 ├── setup.sh              # Complete system setup
-├── manage.sh              # System management
-├── rpi_control.py         # Main application
+├── manage.sh             # System management
+├── rpi_control.py        # Main application
 ├── functionality_check.py # System validation
-├── rpicontrol.service     # Service definition
-├── requirements.txt       # Consolidated Python dependencies
+├── rpicontrol.service    # Service definition
+├── requirements.txt      # Consolidated Python dependencies
 ├── start_gui.sh          # Compatibility redirect
 ├── README.md             # This file
 ├── RASPBERRY_PI_SETUP.md # Pi-specific setup guide
@@ -250,3 +250,9 @@ python functionality_check.py
 **🍓 Optimized for Raspberry Pi 5 & 4 - Made with ❤️ for the Pi community**
 
 *This project is specifically designed and tested on Raspberry Pi hardware with comprehensive Pi OS integration.*
+
+**Note:**  
+> **GPIO Library Change:**  
+> This project now uses [gpiod](https://libgpiod.readthedocs.io/) for GPIO access instead of gpiozero.  
+> Make sure your system has the `gpiod` Python package and the underlying system library installed.  
+> See `requirements.txt` and the installation section for details.
