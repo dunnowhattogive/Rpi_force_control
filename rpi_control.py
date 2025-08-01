@@ -14,6 +14,8 @@ from datetime import datetime
 import numpy as np
 from collections import deque
 
+os.environ["GPIOZERO_PIN_FACTORY"] = "native"
+# ...existing code...
 # Audio support with fallback
 try:
     import pygame

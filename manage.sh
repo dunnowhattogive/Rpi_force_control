@@ -51,6 +51,7 @@ show_help() {
     echo "  fix-boot        Fix auto-boot issues"
     echo "  setup-autostart Setup desktop autostart (alternative to service)"
     echo "  debug           Debug service startup issues"
+    echo "  debug-gpio      Debug GPIO hardware and GPIOZero issues"
     echo "  run-manual      Run application manually for testing"
     echo "  test-service    Test service startup with detailed output"
     echo "  help            Show this help message"
@@ -209,6 +210,85 @@ debug_service() {
     else
         print_warning "⚠️  DISPLAY not set"
     fi
+
+    # GPIO diagnostics
+    echo ""
+    echo "🛠️  GPIO Diagnostics:"
+    debug_gpio
+}
+
+debug_gpio() {
+    print_status "Debugging GPIO hardware and GPIOZero issues..."
+    echo ""
+
+    # Check if running on Raspberry Pi hardware
+    if [[ -f /proc/device-tree/model ]]; then
+        pi_model=$(cat /proc/device-tree/model 2>/dev/null || echo "Unknown")
+        print_success "Detected hardware: $pi_model"
+    else
+        print_warning "Not running on Raspberry Pi hardware (no /proc/device-tree/model)"
+    fi
+
+    # Check if user is in gpio group
+    if groups "${CURRENT_USER}" | grep -qw gpio; then
+        print_success "User '${CURRENT_USER}' is in the 'gpio' group"
+    else
+        print_error "User '${CURRENT_USER}' is NOT in the 'gpio' group"
+        print_status "Run: sudo usermod -aG gpio ${CURRENT_USER} && reboot"
+    fi
+
+    # Check permissions for /dev/gpiomem and /dev/mem
+    if [[ -e /dev/gpiomem ]]; then
+        if [[ -r /dev/gpiomem && -w /dev/gpiomem ]]; then
+            print_success "/dev/gpiomem is accessible (read/write)"
+        else
+            print_error "/dev/gpiomem is not accessible (check permissions)"
+        fi
+    else
+        print_warning "/dev/gpiomem does not exist"
+    fi
+
+    if [[ -e /dev/mem ]]; then
+        if [[ -r /dev/mem && -w /dev/mem ]]; then
+            print_success "/dev/mem is accessible (read/write)"
+        else
+            print_warning "/dev/mem is not accessible (normal if /dev/gpiomem exists)"
+        fi
+    fi
+
+    # Check if gpiozero is installed in venv
+    if [[ -d "venv" ]]; then
+        source venv/bin/activate
+        if python -c "import gpiozero" 2>/dev/null; then
+            print_success "gpiozero is installed in the virtual environment"
+        else
+            print_error "gpiozero is NOT installed in the virtual environment"
+            print_status "Run: ./manage.sh install-deps"
+        fi
+
+        # Check pin factory
+        print_status "Checking GPIOZero pin factory..."
+        python -c "from gpiozero import Device; print('Pin factory:', type(Device.pin_factory).__name__)" 2>/dev/null || print_error "Could not import gpiozero or check pin factory"
+        deactivate 2>/dev/null || true
+    else
+        print_error "Virtual environment not found"
+    fi
+
+    # Check for running as root
+    if [[ "$EUID" -eq 0 ]]; then
+        print_warning "Script is running as root. GPIOZero may behave differently."
+    fi
+
+    # Suggest reboot if group membership was just changed
+    print_status "If you recently added your user to the gpio group, you must log out and log back in or reboot."
+    echo ""
+    print_status "If you see 'GPIOZero is using MockFactory', it usually means:"
+    echo " - Not running on a Raspberry Pi"
+    echo " - User lacks permission to access GPIO hardware"
+    echo " - /dev/gpiomem or /dev/mem not accessible"
+    echo " - Running in a virtualized or emulated environment"
+    echo ""
+    print_status "For more info: https://gpiozero.readthedocs.io/en/stable/api_pins.html#pin-factory-selection"
 }
 
 run_manual() {
@@ -971,6 +1051,9 @@ case "${1:-help}" in
         ;;
     debug)
         debug_service
+        ;;
+    debug-gpio)
+        debug_gpio
         ;;
     run-manual)
         run_manual
