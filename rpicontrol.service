@@ -12,7 +12,7 @@ Environment=PYTHONPATH=%h/projects/Rpi_force_control
 Environment=PYTHONUNBUFFERED=1
 Environment=QT_X11_NO_MITSHM=1
 # Wait for display to be ready and activate virtual environment
-ExecStart=/bin/bash -c 'cd %h/projects/Rpi_force_control && source venv/bin/activate && python rpi_control.py'
+ExecStart=/bin/bash -c 'cd %h/projects/Rpi_force_control && python rpi_control.py'
 WorkingDirectory=%h/projects/Rpi_force_control
 Restart=on-failure
 RestartSec=10

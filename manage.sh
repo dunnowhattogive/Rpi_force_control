@@ -37,8 +37,6 @@ show_help() {
     echo "  enable          Enable service to start on boot"
     echo "  disable         Disable service from starting on boot"
     echo "  remove-service  Remove the systemd service"
-    echo "  setup-venv      Setup Python virtual environment"
-    echo "  install-deps    Install Python dependencies"
     echo "  validate        Validate system configuration"
     echo "  update          Update system and Python packages"
     echo "  backup          Create system backup"
@@ -57,74 +55,6 @@ show_help() {
     echo "  help            Show this help message"
 }
 
-setup_venv() {
-    print_status "Setting up Python virtual environment..."
-    if [[ ! -d "venv" ]]; then
-        if python3 -m venv venv; then
-            print_success "Virtual environment created"
-        else
-            print_error "Failed to create virtual environment"
-            return 1
-        fi
-    else
-        print_warning "Virtual environment already exists"
-    fi
-}
-
-install_deps() {
-    print_status "Installing Python dependencies..."
-    if [[ -f "requirements.txt" ]]; then
-        if [[ -d "venv" ]]; then
-            # Temporarily disable exit on error for deactivate
-            set +e
-            source venv/bin/activate
-            if pip install -r requirements.txt; then
-                print_success "Dependencies installed"
-                deactivate
-                set -e
-            else
-                print_error "Failed to install dependencies"
-                deactivate
-                set -e
-                return 1
-            fi
-        else
-            print_error "Virtual environment not found. Run 'setup-venv' first."
-            return 1
-        fi
-    else
-        print_warning "requirements.txt not found"
-    fi
-}
-
-cleanup_service_files() {
-    print_status "Cleaning up duplicate service files..."
-    
-    # Remove backup service files from user systemd directory
-    local files=("rpicontrol.service.backup" "rpicontrol.service.configured")
-    for file in "${files[@]}"; do
-        if [[ -f "$HOME/.config/systemd/user/$file" ]]; then
-            rm -f "$HOME/.config/systemd/user/$file"
-            print_success "Removed $file from user directory"
-        fi
-    done
-    
-    # Clean up project directory duplicates
-    local timestamp
-    timestamp=$(date +%Y%m%d_%H%M%S)
-    for file in "${files[@]}"; do
-        if [[ -f "$PROJECT_DIR/$file" ]] && [[ -f "$PROJECT_DIR/rpicontrol.service" ]]; then
-            if diff "$PROJECT_DIR/rpicontrol.service" "$PROJECT_DIR/$file" >/dev/null 2>&1; then
-                rm -f "$PROJECT_DIR/$file"
-                print_success "Removed duplicate $file"
-            else
-                mv "$PROJECT_DIR/$file" "$PROJECT_DIR/$file.$timestamp"
-                print_warning "Renamed different $file to $file.$timestamp"
-            fi
-        fi
-    done
-}
-
 debug_service() {
     print_status "Debugging service startup issues..."
     echo ""
@@ -140,36 +70,13 @@ debug_service() {
         return 1
     fi
     
-    # Check virtual environment
+    # Check Python environment
     echo ""
-    echo "🐍 Virtual Environment:"
-    if [[ -d "venv" ]]; then
-        print_success "✅ venv directory exists"
-        if [[ -f "venv/bin/activate" ]]; then
-            print_success "✅ activate script exists"
-            
-            # Test activation
-            set +e
-            if source venv/bin/activate 2>/dev/null; then
-                print_success "✅ Virtual environment can be activated"
-                
-                # Check Python executable
-                if command -v python >/dev/null 2>&1; then
-                    print_success "✅ Python available in venv: $(python --version)"
-                else
-                    print_error "❌ Python not available in venv"
-                fi
-                
-                deactivate 2>/dev/null || true
-            else
-                print_error "❌ Cannot activate virtual environment"
-            fi
-            set -e
-        else
-            print_error "❌ activate script missing"
-        fi
+    echo "🐍 Python Environment:"
+    if command -v python3 >/dev/null 2>&1; then
+        print_success "✅ python3 available: $(python3 --version)"
     else
-        print_error "❌ venv directory missing"
+        print_error "❌ python3 not available"
     fi
     
     # Check service file
@@ -256,18 +163,12 @@ debug_gpio() {
         fi
     fi
 
-    # Check if gpiod is installed in venv
-    if [[ -d "venv" ]]; then
-        source venv/bin/activate
-        if python -c "import gpiod" 2>/dev/null; then
-            print_success "gpiod is installed in the virtual environment"
-        else
-            print_error "gpiod is NOT installed in the virtual environment"
-            print_status "Run: ./manage.sh install-deps"
-        fi
-        deactivate 2>/dev/null || true
+    # Check if gpiod is installed
+    if python3 -c "import gpiod" 2>/dev/null; then
+        print_success "gpiod is installed"
     else
-        print_error "Virtual environment not found"
+        print_error "gpiod is NOT installed"
+        print_status "Run: pip3 install -r requirements.txt"
     fi
 
     # Check for running as root
@@ -295,28 +196,12 @@ run_manual() {
         return 1
     fi
     
-    if [[ ! -d "venv" ]]; then
-        print_error "❌ Virtual environment not found!"
-        print_status "Run './manage.sh setup-venv' first."
-        return 1
-    fi
-    
-    print_status "Activating virtual environment and running application..."
-    cd "$PROJECT_DIR"
-    
-    # Activate venv and run
-    set +e
-    source venv/bin/activate
-    
-    print_status "Running: python rpi_control.py"
+    print_status "Running: python3 rpi_control.py"
     echo "Press Ctrl+C to stop the application"
     echo ""
-    
-    python rpi_control.py
+
+    python3 rpi_control.py
     local exit_code=$?
-    
-    deactivate 2>/dev/null || true
-    set -e
     
     echo ""
     if [[ $exit_code -eq 0 ]]; then
@@ -364,7 +249,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=QT_X11_NO_MITSHM=1
 # Wait for X11 to be ready with timeout and fallback
 ExecStartPre=/bin/bash -c 'timeout 30 bash -c "while ! xset q &>/dev/null; do sleep 1; done" || echo "X11 not ready, proceeding anyway"'
-ExecStart=/bin/bash -c 'cd ${PROJECT_DIR} && source venv/bin/activate && python rpi_control.py'
+ExecStart=/bin/bash -c 'cd ${PROJECT_DIR} && python3 rpi_control.py'
 WorkingDirectory=${PROJECT_DIR}
 Restart=on-failure
 RestartSec=15
@@ -389,6 +274,34 @@ EOF
     fi
 }
 
+cleanup_service_files() {
+    print_status "Cleaning up duplicate service files..."
+    
+    # Remove backup service files from user systemd directory
+    local files=("rpicontrol.service.backup" "rpicontrol.service.configured")
+    for file in "${files[@]}"; do
+        if [[ -f "$HOME/.config/systemd/user/$file" ]]; then
+            rm -f "$HOME/.config/systemd/user/$file"
+            print_success "Removed $file from user directory"
+        fi
+    done
+    
+    # Clean up project directory duplicates
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    for file in "${files[@]}"; do
+        if [[ -f "$PROJECT_DIR/$file" ]] && [[ -f "$PROJECT_DIR/rpicontrol.service" ]]; then
+            if diff "$PROJECT_DIR/rpicontrol.service" "$PROJECT_DIR/$file" >/dev/null 2>&1; then
+                rm -f "$PROJECT_DIR/$file"
+                print_success "Removed duplicate $file"
+            else
+                mv "$PROJECT_DIR/$file" "$PROJECT_DIR/$file.$timestamp"
+                print_warning "Renamed different $file to $file.$timestamp"
+            fi
+        fi
+    done
+}
+
 complete_setup() {
     print_status "=== RPi Force Control - Complete Setup ==="
     print_status "Setting up project for fresh Raspberry Pi..."
@@ -411,22 +324,9 @@ complete_setup() {
     fi
     echo ""
     
-    # Step 1: Setup Python virtual environment
-    print_status "Step 1/6: Setting up Python virtual environment..."
-    if ! setup_venv; then
-        print_error "Failed to setup virtual environment"
-        set -e
-        return 1
-    fi
-    echo ""
-    
-    # Step 2: Install dependencies
-    print_status "Step 2/6: Installing Python dependencies..."
-    install_deps  # This can fail but we continue
-    echo ""
-    
-    # Step 3: Setup systemd service
-    print_status "Step 3/6: Setting up systemd service..."
+    # Step 1: Setup systemd service
+    print_status "Step 1/5: Setting up systemd service..."
+    system_clean
     if ! setup_service; then
         print_error "Failed to setup service"
         set -e
@@ -434,8 +334,8 @@ complete_setup() {
     fi
     echo ""
     
-    # Step 4: Enable user lingering for boot startup
-    print_status "Step 4/6: Enabling user lingering for boot startup..."
+    # Step 2: Enable user lingering for boot startup
+    print_status "Step 2/5: Enabling user lingering for boot startup..."
     if sudo loginctl enable-linger "${CURRENT_USER}"; then
         print_success "User lingering enabled - service will start on boot"
     else
@@ -444,18 +344,22 @@ complete_setup() {
     fi
     echo ""
     
-    # Step 5: Configure auto-login for GUI
-    print_status "Step 5/6: Configuring auto-login for GUI..."
+    # Step 3: Configure auto-login for GUI
+    print_status "Step 3/5: Configuring auto-login for GUI..."
     configure_auto_login
     echo ""
     
-    # Step 6: Start the service
-    print_status "Step 6/6: Starting the service..."
+    # Step 4: Start the service
+    print_status "Step 4/5: Starting the service..."
     if systemctl --user start "${SERVICE_NAME}"; then
         print_success "Service started successfully"
     else
         print_error "Failed to start service"
     fi
+    echo ""
+
+    print_status "Step 5/5: Installing and Configuring packages for GUI..."
+    system_update
     echo ""
     
     set -e  # Re-enable exit on error
@@ -519,13 +423,7 @@ EOF
         cat > "${PROJECT_DIR}/start.sh" << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
-if [[ -d "venv" ]]; then
-    source venv/bin/activate
-    python rpi_control.py
-else
-    echo "Virtual environment not found"
-    exit 1
-fi
+python3 rpi_control.py
 EOF
         chmod +x "${PROJECT_DIR}/start.sh"
         print_success "Desktop autostart configured with new start.sh"
@@ -687,25 +585,6 @@ app_validate() {
         ((errors++))
     fi
     
-    # Check virtual environment
-    if [[ -d "venv" ]] && [[ -f "venv/bin/activate" ]]; then
-        print_success "✅ Virtual environment found"
-        
-        # Test activation
-        set +e
-        if source venv/bin/activate 2>/dev/null; then
-            print_success "✅ Virtual environment functional"
-            deactivate 2>/dev/null || true
-        else
-            print_error "❌ Virtual environment corrupted"
-            ((errors++))
-        fi
-        set -e
-    else
-        print_error "❌ Virtual environment missing"
-        ((errors++))
-    fi
-    
     # Check service
     if [[ -f "${SYSTEMD_USER_DIR}/${SERVICE_NAME}" ]]; then
         print_success "✅ Service file found"
@@ -740,21 +619,24 @@ system_update() {
         print_error "Failed to update system packages"
         return 1
     fi
+
+    if sudo apt install python3-libgpiod libgpiod2 libgpiod-dev -y; then
+        print_success "GPIO library updated"
+    else
+        print_error "Failed to update GPIO library"
+        return 1
+    fi
     
     # Update Python packages
-    if [[ -d "venv" ]]; then
-        set +e
-        source venv/bin/activate
-        if pip install --upgrade pip setuptools wheel; then
+    if [[ -f "requirements.txt" ]]; then
+        if pip3 install --upgrade pip setuptools wheel; then
             print_success "Python tools updated"
-            if [[ -f "requirements.txt" ]] && pip install --upgrade -r requirements.txt; then
+            if pip3 install --upgrade -r requirements.txt; then
                 print_success "Python packages updated"
             fi
         else
             print_error "Failed to update Python packages"
         fi
-        deactivate 2>/dev/null || true
-        set -e
     fi
     
     print_success "System update completed"
@@ -1004,12 +886,6 @@ case "${1:-help}" in
         rm -f "${SYSTEMD_USER_DIR}/${SERVICE_NAME}"
         systemctl --user daemon-reload || true
         print_success "Service removed"
-        ;;
-    setup-venv)
-        setup_venv || exit 1
-        ;;
-    install-deps)
-        install_deps || exit 1
         ;;
     validate)
         app_validate || exit 1
