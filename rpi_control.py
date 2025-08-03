@@ -628,6 +628,7 @@ class SequenceManager:
 # --- Controller class integrating GUI and logic ---
 class Controller:
     def __init__(self):
+        self.apply_config(init_pins=True)
         self.stepper = StepperMotor()
         self.servo_ctrl = ServoController()
         self.app = None
@@ -707,7 +708,7 @@ class Controller:
         self.config_manager = ConfigManager()
         self.sequence_manager = SequenceManager()
         
-        self.apply_config()
+        self.apply_config(init_pins=True)
         
         # Initialize data for plotting
         self.force_history = deque(maxlen=1000)
@@ -738,19 +739,33 @@ class Controller:
         else:
             self.log_status("- No load cell detected (simulation mode)")
 
-    def apply_config(self):
-        """Apply loaded configuration"""
+    def apply_config(self, init_pins=False):
+        """Apply loaded configuration (pins, PID, safety, etc)"""
         config = self.config_manager.config
-        
+
+        # --- Pins ---
+        StepperMotor.DIR_PIN = config['stepper'].get('dir_pin', 20)
+        StepperMotor.STEP_PIN = config['stepper'].get('step_pin', 21)
+        StepperMotor.ENABLE_PIN = config['stepper'].get('enable_pin', 16)
+        ServoController.SERVO_PINS = config['servos'].get('pins', [17, 27, 22])
+
+        # --- PID ---
         self.pid_kp = config['pid'].get('kp', 2.0)
         self.pid_ki = config['pid'].get('ki', 0.2)
         self.pid_kd = config['pid'].get('kd', 0.3)
-        
+
+        # --- Safety ---
         self.safety_manager.max_force = config['safety']['max_force']
         self.safety_manager.min_force = config['safety']['min_force']
         self.safety_manager.alarms_enabled = config['safety']['alarms_enabled']
-        
+
+        # --- Stepper timing ---
         StepperMotor.STEP_DELAY = config['stepper']['step_delay']
+
+        # If called after hardware objects are created and pins changed, re-initialize them
+        if not init_pins:
+            self.stepper = StepperMotor()
+            self.servo_ctrl = ServoController()
 
     def read_force_with_calibration(self):
         """Read force with calibration applied"""
