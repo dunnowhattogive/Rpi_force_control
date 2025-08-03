@@ -264,7 +264,7 @@ def detect_load_cell_port():
             # Common identifiers for USB-Serial adapters used with HX711
             if any(keyword in description_lower for keyword in [
                 'ch340', 'ch341',           # Common Chinese USB-Serial chips
-                'cp210',  'MARK-10'                   # Silicon Labs chips
+                'cp210', 'mark-10',        # Silicon Labs chips
                 'ft232', 'ftdi',            # FTDI chips
                 'pl2303',                   # Prolific chips
                 'arduino', 'nano', 'uno',   # Arduino boards with HX711
