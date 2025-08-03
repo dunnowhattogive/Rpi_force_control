@@ -152,19 +152,18 @@ def read_force(ser):
     if ser is None:
         # Simulate force value for GUI/testing with minimal variation
         import random
-        # Get the current simulated force or start at 0
         base_force = getattr(read_force, 'simulated_force', 0.0)
-        # Add very small random variation to simulate sensor noise
         variation = random.uniform(-0.5, 0.5)
         read_force.simulated_force = max(0, min(10000, base_force + variation))
         return read_force.simulated_force
-    
+
     try:
+        # MARK-10: Send '?\\r' to request a reading
+        ser.write(b'?\r')
+        time.sleep(0.05)  # Small delay to allow device to respond
         line = ser.readline().decode('utf-8').strip()
         if not line:
             return None
-        
-        # MK10 load cell with HX711 should output force values in grams
         return float(line)
     except (ValueError, UnicodeDecodeError):
         return None
@@ -294,17 +293,20 @@ def detect_load_cell_port():
     
     return None
 
-def test_load_cell_communication(port, timeout=2):
-    """Test if the given port has a load cell by trying to read data"""
+def test_load_cell_communication(port, timeout=10):
+    """Test if the given port has a load cell by trying to read data.
+    For MARK-10, send '?\\r' to request data."""
+    print(f"Testing port {port} for load cell. Sending '?\\r' to request data...")
     try:
         with serial.Serial(port, 9600, timeout=timeout) as ser:
-            # Try to read a few lines to see if we get numeric data
-            for _ in range(5):
+            for _ in range(int(timeout * 2)):
+                ser.write(b'?\r')
+                time.sleep(0.05)
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
                 if line:
                     try:
-                        # If we can parse it as a float, it's likely force data
                         float(line)
+                        print(f"Detected load cell on {port} (received: {line})")
                         return True
                     except ValueError:
                         continue
