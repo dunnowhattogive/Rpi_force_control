@@ -264,7 +264,7 @@ def detect_load_cell_port():
             # Common identifiers for USB-Serial adapters used with HX711
             if any(keyword in description_lower for keyword in [
                 'ch340', 'ch341',           # Common Chinese USB-Serial chips
-                'cp210',                     # Silicon Labs chips
+                'cp210',  'MARK-10'                   # Silicon Labs chips
                 'ft232', 'ftdi',            # FTDI chips
                 'pl2303',                   # Prolific chips
                 'arduino', 'nano', 'uno',   # Arduino boards with HX711
@@ -275,7 +275,7 @@ def detect_load_cell_port():
                 
             # Also check manufacturer
             if any(keyword in manufacturer_lower for keyword in [
-                'arduino', 'ftdi', 'silicon labs', 'prolific'
+                'arduino', 'ftdi', 'silicon labs', 'prolific', 'Silicon Labs', 'MARK-10'
             ]):
                 return port.device
     except Exception as e:
@@ -634,7 +634,7 @@ class Controller:
         self.calibration_manager = CalibrationManager()
         self.config_manager = ConfigManager()
         self.sequence_manager = SequenceManager()
-        
+
         self.apply_config(init_pins=True)
         self.stepper = StepperMotor()
         self.servo_ctrl = ServoController()
