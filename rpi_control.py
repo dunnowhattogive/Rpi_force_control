@@ -628,6 +628,13 @@ class SequenceManager:
 # --- Controller class integrating GUI and logic ---
 class Controller:
     def __init__(self):
+        # Initialize components
+        self.safety_manager = SafetyManager()
+        self.data_logger = DataLogger()
+        self.calibration_manager = CalibrationManager()
+        self.config_manager = ConfigManager()
+        self.sequence_manager = SequenceManager()
+        
         self.apply_config(init_pins=True)
         self.stepper = StepperMotor()
         self.servo_ctrl = ServoController()
@@ -700,13 +707,6 @@ class Controller:
 
         signal.signal(signal.SIGINT, handle_exit)
         signal.signal(signal.SIGTERM, handle_exit)
-
-        # Initialize components
-        self.safety_manager = SafetyManager()
-        self.data_logger = DataLogger()
-        self.calibration_manager = CalibrationManager()
-        self.config_manager = ConfigManager()
-        self.sequence_manager = SequenceManager()
         
         self.apply_config(init_pins=True)
         
